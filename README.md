@@ -125,6 +125,27 @@ Add the server to your client's MCP configuration (`claude_desktop_config.json`,
 
 ---
 
+## Command-Line Interface (CLI)
+
+BioContext includes a built-in CLI for direct terminal testing without needing an active LLM client:
+
+```bash
+# Resolve a gene symbol or alias
+uv run biocontext resolve TP53
+uv run biocontext resolve HER2
+
+# Query mouse gene (Mus musculus - taxon 10090)
+uv run biocontext resolve Trp53 --taxon 10090
+
+# Batch resolve multiple entities
+uv run biocontext batch TP53 HER2 EGFR MYC
+
+# Fetch protein metadata from UniProt
+uv run biocontext protein P04637
+```
+
+---
+
 ## Available MCP Tools
 
 | Tool | Parameters | Description |
@@ -132,6 +153,19 @@ Add the server to your client's MCP configuration (`claude_desktop_config.json`,
 | `resolve_gene` | `query: str`, `taxon_id: int = 9606` | Resolves official symbols (`TP53`), aliases (`HER2`), or Entrez IDs (`7157`) to a canonical `GeneEntity` with audit reasons. |
 | `batch_resolve_genes` | `queries: list[str]`, `taxon_id: int = 9606` | Concurrently resolves multiple gene identifiers or aliases. |
 | `get_protein_info` | `accession: str` | Retrieves structured protein metadata from UniProtKB by primary accession (e.g. `P04637`). |
+
+---
+
+## Benchmark & Empirical Validation
+
+To validate Phase 0 accuracy KPIs, a 25-case benchmark suite evaluates standard symbols, historical aliases (`MLL`, `OCT4`, `INT1`, `HER2`), Entrez IDs (`7157`, `672`, `2064`), UniProt accessions, and cross-species lookups:
+
+```bash
+uv run --extra dev pytest tests/test_benchmark.py -v
+```
+
+- **Accuracy**: $100\%$ ($25/25$ benchmark cases passing).
+- **Target KPI**: $\ge 95\%$ accuracy achieved.
 
 ---
 
