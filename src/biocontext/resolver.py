@@ -3,7 +3,10 @@
 from typing import List, Optional
 from biocontext.adapters import HGNCAdapter, NCBIAdapter, UniProtAdapter
 from biocontext.base import SQLiteCache
+from biocontext.logging import get_logger
 from biocontext.schemas import MatchReason, ResolutionResult
+
+logger = get_logger("resolver")
 
 
 class EntityResolver:

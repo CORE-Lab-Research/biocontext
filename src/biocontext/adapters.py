@@ -5,9 +5,10 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 from biocontext.base import BaseBioAdapter, SQLiteCache
+from biocontext.logging import get_logger
 from biocontext.schemas import GeneEntity, GenomicLocation, ProteinEntity
 
-logger = logging.getLogger(__name__)
+logger = get_logger("adapters")
 
 
 class HGNCAdapter(BaseBioAdapter):
@@ -74,21 +75,31 @@ class HGNCAdapter(BaseBioAdapter):
         if cached:
             return GeneEntity(**cached)
 
-        url = f"{self.BASE_URL}/search/alias_symbol/{alias.upper()}"
+        # 1. First check prev_symbol (exact historical symbols have higher clinical specificity)
+        url_prev = f"{self.BASE_URL}/search/prev_symbol/{alias.upper()}"
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=self.headers)
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
-
-        docs = data.get("response", {}).get("docs", [])
-        if not docs:
-            # Check prev_symbol as well
-            url_prev = f"{self.BASE_URL}/search/prev_symbol/{alias.upper()}"
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
                 resp_prev = await client.get(url_prev, headers=self.headers)
                 if resp_prev.status_code == 200:
                     docs = resp_prev.json().get("response", {}).get("docs", [])
+                    if docs:
+                        primary_symbol = docs[0].get("symbol")
+                        if primary_symbol:
+                            return await self.fetch_by_symbol(primary_symbol)
+            except Exception as e:
+                logger.warning(f"HGNC prev_symbol lookup failed | error={e}")
+
+        # 2. Check alias_symbol
+        url = f"{self.BASE_URL}/search/alias_symbol/{alias.upper()}"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code != 200:
+                    return None
+                docs = resp.json().get("response", {}).get("docs", [])
+            except Exception as e:
+                logger.warning(f"HGNC alias_symbol lookup failed | error={e}")
+                return None
 
         if not docs:
             return None
@@ -221,11 +232,21 @@ class NCBIAdapter(BaseBioAdapter):
             return GeneEntity(**cached)
 
         params = self._params({"db": "gene", "id": gene_id})
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(self.ESUMMARY_URL, params=params)
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(self.ESUMMARY_URL, params=params)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+            except Exception as e:
+                logger.warning(f"NCBI summary attempt {attempt + 1} failed | error={e}")
+                if attempt == 2:
+                    return None
+                import asyncio
+                await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return None
 
         result = data.get("result", {})
         uids = result.get("uids", [])
@@ -267,11 +288,21 @@ class NCBIAdapter(BaseBioAdapter):
 
         term = f"({query}[Gene Name]) AND {taxon_id}[Taxonomy ID]"
         params = self._params({"db": "gene", "term": term, "retmax": 1})
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(self.ESEARCH_URL, params=params)
-            if resp.status_code != 200:
-                return None
-            id_list = resp.json().get("esearchresult", {}).get("idlist", [])
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(self.ESEARCH_URL, params=params)
+                    if resp.status_code == 200:
+                        id_list = resp.json().get("esearchresult", {}).get("idlist", [])
+                        break
+            except Exception as e:
+                logger.warning(f"NCBI search attempt {attempt + 1} failed | error={e}")
+                if attempt == 2:
+                    return None
+                import asyncio
+                await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return None
 
         if not id_list:
             return None
