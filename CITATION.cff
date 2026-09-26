@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use BioContext in your research, please cite it as below."
+authors:
+  - family-names: "Nandatama"
+    given-names: "Engki"
+    orcid: ""
+title: "BioContext: Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
+version: 0.1.0
+date-released: 2026-09-27
+url: "https://github.com/engkinandatama/biocontext"
+repository-code: "https://github.com/engkinandatama/biocontext"
+license: Apache-2.0
+keywords:
+  - bioinformatics
+  - genomics
+  - entity-resolution
+  - model-context-protocol
+  - mcp
+  - hgnc
+  - ncbi
+  - uniprot
