@@ -40,23 +40,59 @@ Designed natively for AI coding agents and biological research workflows via the
 
 ---
 
-## Installation & Setup
+## Installation (Single Source of Truth)
 
-BioContext uses [`uv`](https://github.com/astral-sh/uv) for deterministic package and virtual environment management.
+BioContext is distributed as a standalone CLI tool and MCP server via [`uv`](https://github.com/astral-sh/uv).
 
-### Prerequisites
-- Python $\ge 3.11$
-- `uv` installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+### Global Installation (Recommended)
 
-### Clone and Install
+Install `biocontext` globally into your system path using `uv tool`:
+
+```bash
+# Install directly from GitHub
+uv tool install git+https://github.com/engkinandatama/biocontext.git
+```
+
+Once installed, the `biocontext` command is available everywhere across your terminal.
+
+To update to the latest release:
+```bash
+uv tool upgrade biocontext
+```
+
+### Local Development Setup
+
+If you are developing or contributing to the codebase:
 
 ```bash
 git clone https://github.com/engkinandatama/biocontext.git
 cd biocontext
 
-# Install dependencies including dev tools
+# Install editable tool locally
+uv tool install --editable .
+
+# Or synchronize local virtualenv with dev dependencies
 uv sync --extra dev
 ```
+
+---
+
+## Configuration & Rate Limits
+
+BioContext operates out-of-the-box with **zero required configuration** using public biological REST APIs.
+
+### NCBI Entrez API Key (Optional)
+
+NCBI enforces a rate limit of **3 requests/second** without an API key, and **10 requests/second** with an API key. BioContext features an internal client-side token bucket rate limiter to automatically prevent HTTP 429 throttling.
+
+To increase your throughput when working with extensive batches:
+
+```bash
+# Set your NCBI API key in your shell environment
+export NCBI_API_KEY="your_ncbi_api_key_here"
+```
+
+BioContext automatically detects `NCBI_API_KEY` from the environment and dynamically unlocks 10 req/s concurrency.
 
 ---
 
@@ -131,25 +167,25 @@ BioContext includes a built-in CLI for direct terminal testing without needing a
 
 ```bash
 # Resolve a gene symbol or alias
-uv run biocontext resolve TP53
-uv run biocontext resolve HER2
+biocontext resolve TP53
+biocontext resolve HER2
 
 # Query cross-species (e.g. Mus musculus - taxon 10090)
-uv run biocontext resolve Trp53 --taxon 10090
+biocontext resolve Trp53 --taxon 10090
 
 # Batch resolve multiple entities
-uv run biocontext batch TP53 HER2 EGFR MYC
+biocontext batch TP53 HER2 EGFR MYC
 
 # Fetch protein metadata from UniProt
-uv run biocontext protein P04637
+biocontext protein P04637
 
 # Manage local cache
-uv run biocontext cache stats
-uv run biocontext cache clear
+biocontext cache stats
+biocontext cache clear
 
 # Run built-in accuracy benchmark & test suite
-uv run biocontext bench
-uv run biocontext test
+biocontext bench
+biocontext test
 ```
 
 ---

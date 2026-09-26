@@ -4,7 +4,9 @@ import logging
 from typing import Any, Dict, List, Optional
 import httpx
 
-from biocontext.base import BaseBioAdapter, SQLiteCache
+import os
+
+from biocontext.base import AsyncRateLimiter, BaseBioAdapter, SQLiteCache
 from biocontext.logging import get_logger
 from biocontext.schemas import GeneEntity, GenomicLocation, ProteinEntity
 
@@ -216,7 +218,15 @@ class NCBIAdapter(BaseBioAdapter):
 
     def __init__(self, cache: Optional[SQLiteCache] = None, api_key: Optional[str] = None):
         super().__init__(name="NCBI", cache=cache)
-        self.api_key = api_key
+        # Dynamically read from parameter or environment variable
+        self.api_key = api_key or os.environ.get("NCBI_API_KEY")
+        # Rate limit: 10 req/s with API key, 3 req/s without key (with safety margin: 2.8 req/s)
+        rate = 9.5 if self.api_key else 2.8
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=rate)
+        if self.api_key:
+            logger.info("NCBIAdapter initialized with API key | rate_limit=10_req_sec")
+        else:
+            logger.info("NCBIAdapter initialized without API key | rate_limit=3_req_sec")
 
     def _params(self, extra: Dict[str, Any]) -> Dict[str, Any]:
         p = {"retmode": "json"}
@@ -234,11 +244,16 @@ class NCBIAdapter(BaseBioAdapter):
         params = self._params({"db": "gene", "id": gene_id})
         for attempt in range(3):
             try:
+                await self.rate_limiter.acquire()
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     resp = await client.get(self.ESUMMARY_URL, params=params)
                     if resp.status_code == 200:
                         data = resp.json()
                         break
+                    elif resp.status_code == 429:
+                        logger.warning("NCBI rate limit 429 encountered, cooling down...")
+                        import asyncio
+                        await asyncio.sleep(1.0)
             except Exception as e:
                 logger.warning(f"NCBI summary attempt {attempt + 1} failed | error={e}")
                 if attempt == 2:
@@ -290,11 +305,16 @@ class NCBIAdapter(BaseBioAdapter):
         params = self._params({"db": "gene", "term": term, "retmax": 1})
         for attempt in range(3):
             try:
+                await self.rate_limiter.acquire()
                 async with httpx.AsyncClient(timeout=15.0) as client:
                     resp = await client.get(self.ESEARCH_URL, params=params)
                     if resp.status_code == 200:
                         id_list = resp.json().get("esearchresult", {}).get("idlist", [])
                         break
+                    elif resp.status_code == 429:
+                        logger.warning("NCBI rate limit 429 encountered, cooling down...")
+                        import asyncio
+                        await asyncio.sleep(1.0)
             except Exception as e:
                 logger.warning(f"NCBI search attempt {attempt + 1} failed | error={e}")
                 if attempt == 2:

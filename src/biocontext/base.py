@@ -88,6 +88,28 @@ class SQLiteCache:
             return {"total_entries": total, "by_namespace": by_ns, "db_path": str(self.db_path)}
 
 
+class AsyncRateLimiter:
+    """Token-bucket async rate limiter preventing HTTP 429 penalties."""
+
+    def __init__(self, requests_per_second: float):
+        import asyncio
+        self.rate = requests_per_second
+        self.interval = 1.0 / requests_per_second if requests_per_second > 0 else 0.0
+        self.lock = asyncio.Lock()
+        self.last_request_time = 0.0
+
+    async def acquire(self) -> None:
+        if self.rate <= 0:
+            return
+        import asyncio
+        async with self.lock:
+            now = asyncio.get_event_loop().time()
+            elapsed = now - self.last_request_time
+            if elapsed < self.interval:
+                await asyncio.sleep(self.interval - elapsed)
+            self.last_request_time = asyncio.get_event_loop().time()
+
+
 class BaseBioAdapter(ABC):
     """Abstract Base Class for external biological resource adapters."""
 
