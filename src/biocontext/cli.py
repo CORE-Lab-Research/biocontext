@@ -34,6 +34,18 @@ def build_parser() -> argparse.ArgumentParser:
     protein_parser = subparsers.add_parser("protein", help="Fetch UniProt protein metadata by accession")
     protein_parser.add_argument("accession", help="UniProt accession ID (e.g. P04637)")
 
+    # Command: cache (Cache management)
+    cache_parser = subparsers.add_parser("cache", help="Manage persistent SQLite cache")
+    cache_sub = cache_parser.add_subparsers(dest="cache_action", help="Cache action")
+    cache_sub.add_parser("stats", help="Show cache entries and statistics")
+    cache_sub.add_parser("clear", help="Purge all cached responses")
+
+    # Command: bench (Run empirical accuracy benchmark)
+    subparsers.add_parser("bench", help="Run empirical 25-case resolution accuracy benchmark")
+
+    # Command: test (Run complete test suite)
+    subparsers.add_parser("test", help="Run complete pytest test suite")
+
     return parser
 
 
@@ -59,6 +71,16 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(protein.model_dump_json(indent=2))
         return 0
 
+    elif args.command == "cache":
+        cache = resolver.cache
+        if args.cache_action == "clear":
+            count = cache.clear()
+            print(f"Purged {count} cached entries from {cache.db_path}")
+            return 0
+        else:
+            print(json.dumps(cache.stats(), indent=2))
+            return 0
+
     return 0
 
 
@@ -75,7 +97,13 @@ def main():
 
     if args.command == "server":
         mcp.run(transport="stdio")
-    elif args.command in ("resolve", "batch", "protein"):
+    elif args.command == "bench":
+        import pytest
+        sys.exit(pytest.main(["tests/test_benchmark.py", "-v"]))
+    elif args.command == "test":
+        import pytest
+        sys.exit(pytest.main(["tests/", "-v"]))
+    elif args.command in ("resolve", "batch", "protein", "cache"):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
         parser.print_help()

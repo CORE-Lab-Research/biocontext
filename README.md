@@ -134,7 +134,7 @@ BioContext includes a built-in CLI for direct terminal testing without needing a
 uv run biocontext resolve TP53
 uv run biocontext resolve HER2
 
-# Query mouse gene (Mus musculus - taxon 10090)
+# Query cross-species (e.g. Mus musculus - taxon 10090)
 uv run biocontext resolve Trp53 --taxon 10090
 
 # Batch resolve multiple entities
@@ -142,6 +142,14 @@ uv run biocontext batch TP53 HER2 EGFR MYC
 
 # Fetch protein metadata from UniProt
 uv run biocontext protein P04637
+
+# Manage local cache
+uv run biocontext cache stats
+uv run biocontext cache clear
+
+# Run built-in accuracy benchmark & test suite
+uv run biocontext bench
+uv run biocontext test
 ```
 
 ---

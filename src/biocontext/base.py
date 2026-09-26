@@ -67,7 +67,25 @@ class SQLiteCache:
                 """,
                 (namespace, key, data_json, now, expires_at)
             )
+    def clear(self) -> int:
+        """Purge all entries from cache store and return number of deleted rows."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM cache_store")
+            count = cursor.fetchone()[0]
+            cursor.execute("DELETE FROM cache_store")
             conn.commit()
+            return count
+
+    def stats(self) -> Dict[str, Any]:
+        """Return cache store item counts and namespace distribution."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM cache_store")
+            total = cursor.fetchone()[0]
+            cursor.execute("SELECT namespace, COUNT(*) FROM cache_store GROUP BY namespace")
+            by_ns = dict(cursor.fetchall())
+            return {"total_entries": total, "by_namespace": by_ns, "db_path": str(self.db_path)}
 
 
 class BaseBioAdapter(ABC):
