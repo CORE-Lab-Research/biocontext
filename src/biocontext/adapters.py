@@ -7,6 +7,7 @@ import httpx
 import os
 
 from biocontext.base import AsyncRateLimiter, BaseBioAdapter, SQLiteCache
+from biocontext.config import ClientConfig
 from biocontext.logging import get_logger
 from biocontext.schemas import GeneEntity, GenomicLocation, ProteinEntity
 
@@ -20,9 +21,11 @@ class HGNCAdapter(BaseBioAdapter):
 
     BASE_URL = "https://rest.genenames.org"
 
-    def __init__(self, cache: Optional[SQLiteCache] = None):
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
         super().__init__(name="HGNC", cache=cache)
-        self.headers = {"Accept": "application/json"}
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+
 
     async def fetch_by_symbol(self, symbol: str) -> Optional[GeneEntity]:
         cache_key = f"symbol:{symbol.upper()}"
@@ -61,6 +64,57 @@ class HGNCAdapter(BaseBioAdapter):
             species="Homo sapiens",
             hgnc_id=doc.get("hgnc_id"),
             ncbi_gene_id=doc.get("entrez_id"),
+            ensembl_gene_id=doc.get("ensembl_gene_id"),
+            uniprot_ids=uniprot_ids,
+            synonyms=all_synonyms,
+            locus_type=doc.get("locus_type"),
+            location=location,
+        )
+
+        self.cache.set("hgnc", cache_key, gene.model_dump())
+        return gene
+
+    async def fetch_by_entrez_id(self, entrez_id: str) -> Optional[GeneEntity]:
+        cache_key = f"entrez:{entrez_id}"
+        cached = self.cache.get("hgnc", cache_key)
+        if cached:
+            return GeneEntity(**cached)
+
+        url = f"{self.BASE_URL}/fetch/entrez_id/{entrez_id}"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code != 200:
+                    return None
+                data = resp.json()
+            except Exception as e:
+                logger.warning(f"HGNC fetch_by_entrez_id failed | error={e}")
+                return None
+
+        docs = data.get("response", {}).get("docs", [])
+        if not docs:
+            return None
+
+        doc = docs[0]
+        uniprot_ids = doc.get("uniprot_ids", [])
+        aliases = doc.get("alias_symbol", [])
+        prev_symbols = doc.get("prev_symbol", [])
+        all_synonyms = list(dict.fromkeys(aliases + prev_symbols))
+
+        location = None
+        if "location" in doc:
+            location = GenomicLocation(
+                chromosome=doc.get("location", ""),
+                assembly="GRCh38"
+            )
+
+        gene = GeneEntity(
+            symbol=doc.get("symbol"),
+            name=doc.get("name"),
+            taxon_id=9606,
+            species="Homo sapiens",
+            hgnc_id=doc.get("hgnc_id"),
+            ncbi_gene_id=str(doc.get("entrez_id")),
             ensembl_gene_id=doc.get("ensembl_gene_id"),
             uniprot_ids=uniprot_ids,
             synonyms=all_synonyms,
@@ -128,8 +182,10 @@ class UniProtAdapter(BaseBioAdapter):
 
     BASE_URL = "https://rest.uniprot.org/uniprotkb"
 
-    def __init__(self, cache: Optional[SQLiteCache] = None):
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
         super().__init__(name="UniProt", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
 
     async def fetch_by_accession(self, accession: str) -> Optional[ProteinEntity]:
         cache_key = f"acc:{accession.upper()}"
@@ -139,7 +195,7 @@ class UniProtAdapter(BaseBioAdapter):
 
         url = f"{self.BASE_URL}/{accession.upper()}.json"
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=self.headers)
             if resp.status_code != 200:
                 return None
             data = resp.json()
@@ -192,7 +248,7 @@ class UniProtAdapter(BaseBioAdapter):
             "size": 1
         }
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(search_url, params=params)
+            resp = await client.get(search_url, params=params, headers=self.headers)
             if resp.status_code != 200:
                 return None
             results = resp.json().get("results", [])
@@ -216,10 +272,20 @@ class NCBIAdapter(BaseBioAdapter):
     ESEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
     ESUMMARY_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
 
-    def __init__(self, cache: Optional[SQLiteCache] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        cache: Optional[SQLiteCache] = None,
+        api_key: Optional[str] = None,
+        email: Optional[str] = None,
+        tool: Optional[str] = None
+    ):
         super().__init__(name="NCBI", cache=cache)
         # Dynamically read from parameter or environment variable
         self.api_key = api_key or os.environ.get("NCBI_API_KEY")
+        self.email = ClientConfig.get_email(email)
+        self.tool = ClientConfig.get_tool(tool)
+        self.headers = ClientConfig.get_headers(self.email)
+
         # Rate limit: 10 req/s with API key, 3 req/s without key (with safety margin: 2.8 req/s)
         rate = 9.5 if self.api_key else 2.8
         self.rate_limiter = AsyncRateLimiter(requests_per_second=rate)
@@ -229,11 +295,14 @@ class NCBIAdapter(BaseBioAdapter):
             logger.info("NCBIAdapter initialized without API key | rate_limit=3_req_sec")
 
     def _params(self, extra: Dict[str, Any]) -> Dict[str, Any]:
-        p = {"retmode": "json"}
+        p = {"retmode": "json", "tool": self.tool}
+        if self.email:
+            p["email"] = self.email
         if self.api_key:
             p["api_key"] = self.api_key
         p.update(extra)
         return p
+
 
     async def fetch_by_id(self, gene_id: str) -> Optional[GeneEntity]:
         cache_key = f"gene_id:{gene_id}"
@@ -246,7 +315,7 @@ class NCBIAdapter(BaseBioAdapter):
             try:
                 await self.rate_limiter.acquire()
                 async with httpx.AsyncClient(timeout=15.0) as client:
-                    resp = await client.get(self.ESUMMARY_URL, params=params)
+                    resp = await client.get(self.ESUMMARY_URL, params=params, headers=self.headers)
                     if resp.status_code == 200:
                         data = resp.json()
                         break
@@ -307,7 +376,7 @@ class NCBIAdapter(BaseBioAdapter):
             try:
                 await self.rate_limiter.acquire()
                 async with httpx.AsyncClient(timeout=15.0) as client:
-                    resp = await client.get(self.ESEARCH_URL, params=params)
+                    resp = await client.get(self.ESEARCH_URL, params=params, headers=self.headers)
                     if resp.status_code == 200:
                         id_list = resp.json().get("esearchresult", {}).get("idlist", [])
                         break
