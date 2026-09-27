@@ -568,16 +568,29 @@ class EnsemblAdapter(BaseBioAdapter):
         url = f"{self.BASE_URL}/lookup/id/{ensembl_id.upper()}"
         params = {"expand": "1" if expand else "0"}
 
-        await self.rate_limiter.acquire()
-        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
-            try:
-                resp = await client.get(url, params=params, headers=self.headers)
-                if resp.status_code != 200:
-                    return None
-                data = resp.json()
-            except Exception as e:
-                logger.warning(f"Ensembl lookup by ID failed | id={ensembl_id} error={e}")
-                return None
+        data = None
+        for attempt in range(3):
+            await self.rate_limiter.acquire()
+            async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+                try:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    elif resp.status_code == 429:
+                        logger.warning("Ensembl 429 rate limit hit, cooling down...")
+                        import asyncio
+                        await asyncio.sleep(1.0)
+                    elif resp.status_code in (404, 400):
+                        return None
+                except Exception as e:
+                    logger.warning(f"Ensembl lookup by ID attempt {attempt + 1} failed | id={ensembl_id} error={e}")
+                    if attempt == 2:
+                        return None
+                    import asyncio
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return None
 
         gene = self._parse_gene_data(data)
         self.cache.set("ensembl", cache_key, gene.model_dump())
@@ -594,16 +607,29 @@ class EnsemblAdapter(BaseBioAdapter):
         url = f"{self.BASE_URL}/lookup/symbol/{species_slug}/{symbol.upper()}"
         params = {"expand": "1" if expand else "0"}
 
-        await self.rate_limiter.acquire()
-        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
-            try:
-                resp = await client.get(url, params=params, headers=self.headers)
-                if resp.status_code != 200:
-                    return None
-                data = resp.json()
-            except Exception as e:
-                logger.warning(f"Ensembl lookup by symbol failed | symbol={symbol} species={species} error={e}")
-                return None
+        data = None
+        for attempt in range(3):
+            await self.rate_limiter.acquire()
+            async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+                try:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    elif resp.status_code == 429:
+                        logger.warning("Ensembl 429 rate limit hit, cooling down...")
+                        import asyncio
+                        await asyncio.sleep(1.0)
+                    elif resp.status_code in (404, 400):
+                        return None
+                except Exception as e:
+                    logger.warning(f"Ensembl lookup by symbol attempt {attempt + 1} failed | symbol={symbol} species={species} error={e}")
+                    if attempt == 2:
+                        return None
+                    import asyncio
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return None
 
         gene = self._parse_gene_data(data)
         self.cache.set("ensembl", cache_key, gene.model_dump())
