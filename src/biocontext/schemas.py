@@ -21,6 +21,18 @@ class ExonEntity(BaseModel):
     strand: Optional[str] = Field(None, description="Strand: '+' or '-'")
 
 
+class OrthologEntity(BaseModel):
+    """Homology and ortholog relationship between genes across species."""
+    source_gene_id: str = Field(..., description="Source Ensembl gene ID (e.g. ENSG00000141510)")
+    source_species: str = Field(..., description="Source species (e.g. homo_sapiens)")
+    target_gene_id: str = Field(..., description="Target orthologous gene ID (e.g. ENSMUSG00000059552)")
+    target_species: str = Field(..., description="Target species (e.g. mus_musculus)")
+    orthology_type: str = Field(..., description="Relationship type: ortholog_one2one, ortholog_one2many, etc.")
+    percent_identity: Optional[float] = Field(None, description="Sequence identity percentage")
+    target_protein_id: Optional[str] = Field(None, description="Target protein identifier")
+
+
+
 class TranscriptEntity(BaseModel):
     """Transcript model associated with a gene."""
     transcript_id: str = Field(..., description="Ensembl transcript ID, e.g. 'ENST00000269305'")

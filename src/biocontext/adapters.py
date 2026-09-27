@@ -9,7 +9,15 @@ import os
 from biocontext.base import AsyncRateLimiter, BaseBioAdapter, SQLiteCache
 from biocontext.config import ClientConfig, RateLimitConfig
 from biocontext.logging import get_logger
-from biocontext.schemas import ExonEntity, GeneEntity, GenomicLocation, ProteinEntity, TranscriptEntity
+from biocontext.schemas import (
+    ExonEntity,
+    GeneEntity,
+    GenomicLocation,
+    OrthologEntity,
+    ProteinEntity,
+    TranscriptEntity,
+)
+
 
 logger = get_logger("adapters")
 
@@ -561,5 +569,69 @@ class EnsemblAdapter(BaseBioAdapter):
             return {"entity": gene, "rule": "ensembl_symbol_lookup", "confidence": 0.95}
 
         return None
+
+    async def fetch_orthologs(
+        self,
+        gene_id_or_symbol: str,
+        target_species: str = "mus_musculus",
+        source_species: str = "homo_sapiens"
+    ) -> List[OrthologEntity]:
+        """Fetch orthologous genes across species via Ensembl Homology REST API."""
+        source_slug = source_species.lower().replace(" ", "_")
+        target_slug = target_species.lower().replace(" ", "_")
+        query_clean = gene_id_or_symbol.strip()
+
+        # If symbol provided instead of Ensembl Gene ID, resolve symbol first
+        gene_id = query_clean
+        if not query_clean.upper().startswith("ENS"):
+            gene = await self.fetch_by_symbol(species=source_slug, symbol=query_clean, expand=False)
+            if not gene or not gene.ensembl_gene_id:
+                return []
+            gene_id = gene.ensembl_gene_id
+
+        cache_key = f"orthologs:{source_slug}:{gene_id.upper()}:{target_slug}"
+        cached = self.cache.get("ensembl", cache_key)
+        if cached and "items" in cached:
+            return [OrthologEntity(**item) for item in cached["items"]]
+
+        url = f"{self.BASE_URL}/homology/id/{source_slug}/{gene_id.upper()}"
+        params = {"target_species": target_slug, "type": "orthologues"}
+
+        await self.rate_limiter.acquire()
+        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+            try:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+            except Exception as e:
+                logger.warning(f"Ensembl homology lookup failed | gene={gene_id} target={target_slug} error={e}")
+                return []
+
+        homologies = data.get("data", [{}])[0].get("homologies", [])
+        orthologs: List[OrthologEntity] = []
+
+        for h in homologies:
+            target = h.get("target", {})
+            target_id = target.get("id")
+            if not target_id:
+                continue
+
+            orthologs.append(
+                OrthologEntity(
+                    source_gene_id=gene_id,
+                    source_species=source_slug,
+                    target_gene_id=target_id,
+                    target_species=target.get("species", target_slug),
+                    orthology_type=h.get("type", "ortholog"),
+                    percent_identity=target.get("perc_id"),
+                    target_protein_id=target.get("protein_id")
+                )
+            )
+
+        self.cache.set("ensembl", cache_key, {"items": [o.model_dump() for o in orthologs]})
+        return orthologs
+
+
 
 

@@ -118,3 +118,21 @@ async def test_ensembl_transcripts_retrieval(resolver):
     assert canon.transcript_id.startswith("ENST")
     assert len(canon.exons) > 0
 
+
+@pytest.mark.asyncio
+async def test_ensembl_ortholog_retrieval(resolver):
+    # Test human TP53 -> mouse ortholog (Trp53 / ENSMUSG00000059552)
+    orthologs = await resolver.ensembl.fetch_orthologs(
+        gene_id_or_symbol="TP53",
+        target_species="mus_musculus",
+        source_species="homo_sapiens"
+    )
+    assert len(orthologs) > 0
+    mouse_ortholog = orthologs[0]
+    assert mouse_ortholog.target_gene_id == "ENSMUSG00000059552"
+    assert mouse_ortholog.target_species == "mus_musculus"
+    assert mouse_ortholog.orthology_type == "ortholog_one2one"
+    assert mouse_ortholog.percent_identity is not None
+    assert mouse_ortholog.percent_identity > 70.0
+
+

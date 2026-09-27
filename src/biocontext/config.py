@@ -97,6 +97,16 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["--species"], "type": str, "default": "homo_sapiens", "help": "Species name (default: homo_sapiens)"}
         ]
     },
+    {
+        "name": "ortholog",
+        "help": "Identify orthologous genes across species via Ensembl",
+        "arguments": [
+            {"flags": ["query"], "help": "Gene symbol (e.g. TP53) or Ensembl Gene ID"},
+            {"flags": ["--target"], "type": str, "default": "mus_musculus", "help": "Target species (default: mus_musculus)"},
+            {"flags": ["--source"], "type": str, "default": "homo_sapiens", "help": "Source species (default: homo_sapiens)"}
+        ]
+    },
+
 
     {
         "name": "cache",

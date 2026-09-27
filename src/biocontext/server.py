@@ -92,6 +92,31 @@ async def get_transcripts(query: str, species: str = "homo_sapiens") -> str:
     return gene.model_dump_json(indent=2)
 
 
+@mcp.tool()
+async def find_orthologs(
+    query: str,
+    target_species: str = "mus_musculus",
+    source_species: str = "homo_sapiens"
+) -> str:
+    """Identify corresponding orthologous genes across species via Ensembl.
+
+    Args:
+        query: Gene symbol (e.g. TP53) or Ensembl Gene ID (e.g. ENSG00000141510).
+        target_species: Target species (default: 'mus_musculus', 'danio_rerio', etc.).
+        source_species: Source species (default: 'homo_sapiens').
+
+    Returns:
+        JSON string containing list of orthologous genes with identity and relation type.
+    """
+    orthologs = await resolver.ensembl.fetch_orthologs(
+        gene_id_or_symbol=query,
+        target_species=target_species,
+        source_species=source_species
+    )
+    return "[" + ",\n".join(o.model_dump_json(indent=2) for o in orthologs) + "]"
+
+
+
 
 def main():
     """Run MCP server over stdio."""

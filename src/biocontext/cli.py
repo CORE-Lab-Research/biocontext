@@ -83,6 +83,14 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(gene.model_dump_json(indent=2))
         return 0
 
+    elif args.command == "ortholog":
+        orthologs = await resolver.ensembl.fetch_orthologs(
+            gene_id_or_symbol=args.query,
+            target_species=args.target,
+            source_species=args.source
+        )
+        print("[" + ",\n".join(o.model_dump_json(indent=2) for o in orthologs) + "]")
+        return 0
 
     elif args.command == "cache":
         cache = resolver.cache
@@ -116,10 +124,11 @@ def main():
     elif args.command == "test":
         import pytest
         sys.exit(pytest.main(["tests/", "-v"]))
-    elif args.command in ("resolve", "batch", "protein", "transcripts", "cache"):
+    elif args.command in ("resolve", "batch", "protein", "transcripts", "ortholog", "cache"):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
         parser.print_help()
+
 
 
 
