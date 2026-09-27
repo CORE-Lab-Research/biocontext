@@ -2,7 +2,8 @@
 Allows easy inspection, auditing, and addition of new CLI commands and rules from a single source.
 """
 
-from typing import Any, Dict, List
+import os
+from typing import Any, Dict, List, Optional
 
 
 class ScoringConfig:
@@ -26,6 +27,30 @@ class RateLimitConfig:
     NCBI_WITH_KEY_RPS: float = 9.5
     HGNC_TIMEOUT_SEC: float = 10.0
     UNIPROT_TIMEOUT_SEC: float = 10.0
+
+
+class ClientConfig:
+    """Outbound client identity and contact information for external APIs."""
+    DEFAULT_TOOL: str = "biocontext"
+    DEFAULT_USER_AGENT: str = "BioContext/0.1.0 (https://github.com/CORE-Lab-Research/biocontext)"
+
+    @classmethod
+    def get_email(cls, email: Optional[str] = None) -> Optional[str]:
+        return email or os.environ.get("NCBI_EMAIL") or os.environ.get("BIOCONTEXT_EMAIL")
+
+    @classmethod
+    def get_tool(cls, tool: Optional[str] = None) -> str:
+        return tool or os.environ.get("NCBI_TOOL") or cls.DEFAULT_TOOL
+
+    @classmethod
+    def get_headers(cls, email: Optional[str] = None) -> Dict[str, str]:
+        contact = cls.get_email(email)
+        ua = f"{cls.DEFAULT_USER_AGENT}; contact: {contact}" if contact else cls.DEFAULT_USER_AGENT
+        return {
+            "User-Agent": ua,
+            "Accept": "application/json",
+        }
+
 
 
 # Single Source of Truth for Exclusive CLI Commands

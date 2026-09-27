@@ -13,11 +13,18 @@ logger = get_logger("resolver")
 class EntityResolver:
     """Multi-source biological entity resolution engine."""
 
-    def __init__(self, cache: Optional[SQLiteCache] = None, ncbi_api_key: Optional[str] = None):
+    def __init__(
+        self,
+        cache: Optional[SQLiteCache] = None,
+        ncbi_api_key: Optional[str] = None,
+        email: Optional[str] = None,
+        tool: Optional[str] = None
+    ):
         self.cache = cache or SQLiteCache()
-        self.hgnc = HGNCAdapter(cache=self.cache)
-        self.ncbi = NCBIAdapter(cache=self.cache, api_key=ncbi_api_key)
-        self.uniprot = UniProtAdapter(cache=self.cache)
+        self.hgnc = HGNCAdapter(cache=self.cache, email=email)
+        self.ncbi = NCBIAdapter(cache=self.cache, api_key=ncbi_api_key, email=email, tool=tool)
+        self.uniprot = UniProtAdapter(cache=self.cache, email=email)
+
 
     def _apply_context_clues(
         self, gene, context: Optional[ResolutionContext], base_confidence: float, reasons: List[MatchReason]
@@ -112,7 +119,28 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
-        # 2. Check Entrez Gene ID lookup or cross-species / fallback via NCBI
+        # 2. If query is numeric (Entrez ID) and human (9606), check HGNC first (authoritative and no strict 3 req/s throttle)
+        if query_clean.isdigit() and taxon_id == 9606:
+            hgnc_entrez_gene = await self.hgnc.fetch_by_entrez_id(query_clean)
+            if hgnc_entrez_gene:
+                reasons.append(
+                    MatchReason(
+                        source="HGNC",
+                        rule="entrez_id_lookup",
+                        confidence=1.0,
+                        details=f"Matched Entrez Gene ID {query_clean} via HGNC to symbol '{hgnc_entrez_gene.symbol}'"
+                    )
+                )
+                final_confidence = self._apply_context_clues(hgnc_entrez_gene, context, 1.0, reasons)
+                return ResolutionResult(
+                    query=query_clean,
+                    match_status="exact",
+                    confidence_score=final_confidence,
+                    resolved_entity=hgnc_entrez_gene,
+                    match_reasons=reasons
+                )
+
+        # 3. Check Entrez Gene ID lookup or cross-species / fallback via NCBI
         ncbi_res = await self.ncbi.resolve_gene(query_clean, taxon_id=taxon_id)
         if ncbi_res:
             ncbi_gene = ncbi_res["entity"]
