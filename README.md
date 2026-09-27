@@ -40,23 +40,59 @@ Designed natively for AI coding agents and biological research workflows via the
 
 ---
 
-## Installation & Setup
+## Installation (Single Source of Truth)
 
-BioContext uses [`uv`](https://github.com/astral-sh/uv) for deterministic package and virtual environment management.
+BioContext is distributed as a standalone CLI tool and MCP server via [`uv`](https://github.com/astral-sh/uv).
 
-### Prerequisites
-- Python $\ge 3.11$
-- `uv` installed (`curl -LsSf https://astral.sh/uv/install.sh | sh`)
+### Global Installation (Recommended)
 
-### Clone and Install
+Install `biocontext` globally into your system path using `uv tool`:
+
+```bash
+# Install directly from GitHub
+uv tool install git+https://github.com/engkinandatama/biocontext.git
+```
+
+Once installed, the `biocontext` command is available everywhere across your terminal.
+
+To update to the latest release:
+```bash
+uv tool upgrade biocontext
+```
+
+### Local Development Setup
+
+If you are developing or contributing to the codebase:
 
 ```bash
 git clone https://github.com/engkinandatama/biocontext.git
 cd biocontext
 
-# Install dependencies including dev tools
+# Install editable tool locally
+uv tool install --editable .
+
+# Or synchronize local virtualenv with dev dependencies
 uv sync --extra dev
 ```
+
+---
+
+## Configuration & Rate Limits
+
+BioContext operates out-of-the-box with **zero required configuration** using public biological REST APIs.
+
+### NCBI Entrez API Key (Optional)
+
+NCBI enforces a rate limit of **3 requests/second** without an API key, and **10 requests/second** with an API key. BioContext features an internal client-side token bucket rate limiter to automatically prevent HTTP 429 throttling.
+
+To increase your throughput when working with extensive batches:
+
+```bash
+# Set your NCBI API key in your shell environment
+export NCBI_API_KEY="your_ncbi_api_key_here"
+```
+
+BioContext automatically detects `NCBI_API_KEY` from the environment and dynamically unlocks 10 req/s concurrency.
 
 ---
 
@@ -125,13 +161,59 @@ Add the server to your client's MCP configuration (`claude_desktop_config.json`,
 
 ---
 
+## Command-Line Interface (CLI)
+
+BioContext includes a built-in CLI for direct terminal testing without needing an active LLM client:
+
+```bash
+# Resolve a gene symbol or alias
+biocontext resolve TP53
+biocontext resolve HER2
+
+# Resolve with contextual hint for disambiguation (e.g. chromosome, locus type)
+biocontext resolve TP53 --chrom 17
+biocontext resolve TP53 --locus-type protein-coding
+
+# Query cross-species (e.g. Mus musculus - taxon 10090)
+biocontext resolve Trp53 --taxon 10090
+
+# Batch resolve multiple entities
+biocontext batch TP53 HER2 EGFR MYC
+
+# Fetch protein metadata from UniProt
+biocontext protein P04637
+
+# Manage local cache
+biocontext cache stats
+biocontext cache clear
+
+# Run built-in accuracy benchmark & test suite
+biocontext bench
+biocontext test
+```
+
+---
+
 ## Available MCP Tools
 
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
-| `resolve_gene` | `query: str`, `taxon_id: int = 9606` | Resolves official symbols (`TP53`), aliases (`HER2`), or Entrez IDs (`7157`) to a canonical `GeneEntity` with audit reasons. |
+| `resolve_gene` | `query: str`, `taxon_id: int = 9606`, `chromosome: str = None`, `locus_type: str = None` | Resolves official symbols (`TP53`), aliases (`HER2`), or Entrez IDs (`7157`) to a canonical `GeneEntity` with contextual scoring adjustments. |
 | `batch_resolve_genes` | `queries: list[str]`, `taxon_id: int = 9606` | Concurrently resolves multiple gene identifiers or aliases. |
 | `get_protein_info` | `accession: str` | Retrieves structured protein metadata from UniProtKB by primary accession (e.g. `P04637`). |
+
+---
+
+## Benchmark & Empirical Validation
+
+To validate Phase 0 accuracy KPIs, a 25-case benchmark suite evaluates standard symbols, historical aliases (`MLL`, `OCT4`, `INT1`, `HER2`), Entrez IDs (`7157`, `672`, `2064`), UniProt accessions, and cross-species lookups:
+
+```bash
+uv run --extra dev pytest tests/test_benchmark.py -v
+```
+
+- **Accuracy**: $100\%$ ($25/25$ benchmark cases passing).
+- **Target KPI**: $\ge 95\%$ accuracy achieved.
 
 ---
 
