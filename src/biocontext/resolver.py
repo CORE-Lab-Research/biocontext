@@ -201,7 +201,7 @@ class EntityResolver:
                 match_reasons=reasons
             )
 
-        # 3. Check UniProt directly (accession lookup e.g. P04637)
+        # 4. Check UniProt directly (accession lookup e.g. P04637)
         uniprot_protein = await self.uniprot.fetch_by_accession(query_clean)
         if uniprot_protein and uniprot_protein.gene_symbol:
             reasons.append(
@@ -225,6 +225,33 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
+        # 5. Fuzzy Match Engine: Check for common typos (e.g. TP54 -> TP53, BRCA -> BRCA1)
+        if taxon_id == 9606 and len(query_clean) >= 3 and not query_clean.isdigit():
+            fuzzy_matches = await self.hgnc.search_fuzzy(
+                query_clean, max_distance=ScoringConfig.FUZZY_MAX_DISTANCE
+            )
+            if fuzzy_matches:
+                best_match = fuzzy_matches[0]
+                reasons.append(
+                    MatchReason(
+                        source="HGNC",
+                        rule="fuzzy_levenshtein_match",
+                        confidence=ScoringConfig.FUZZY_MATCH_CONFIDENCE,
+                        details=f"Approximate typo match resolved query '{query_clean}' to candidate '{best_match.symbol}'"
+                    )
+                )
+                final_confidence = self._apply_context_clues(
+                    best_match, context, ScoringConfig.FUZZY_MATCH_CONFIDENCE, reasons
+                )
+                return ResolutionResult(
+                    query=query_clean,
+                    match_status="fuzzy",
+                    confidence_score=final_confidence,
+                    resolved_entity=best_match,
+                    alternative_matches=fuzzy_matches[1:],
+                    match_reasons=reasons
+                )
+
         return ResolutionResult(
             query=query_clean,
             match_status="unresolved",
@@ -239,3 +266,4 @@ class EntityResolver:
                 )
             ]
         )
+

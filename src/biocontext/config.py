@@ -14,11 +14,14 @@ class ScoringConfig:
     PREV_SYMBOL_CONFIDENCE: float = 0.90
     ALIAS_MATCH_CONFIDENCE: float = 0.85
     NCBI_SEARCH_CONFIDENCE: float = 0.90
+    FUZZY_MATCH_CONFIDENCE: float = 0.75
+    FUZZY_MAX_DISTANCE: int = 2
 
     # Contextual disambiguation adjustments
     CHROMOSOME_MATCH_BONUS: float = 0.05
     CHROMOSOME_MISMATCH_PENALTY: float = 0.40
     LOCUS_TYPE_MISMATCH_PENALTY: float = 0.30
+
 
 
 class RateLimitConfig:

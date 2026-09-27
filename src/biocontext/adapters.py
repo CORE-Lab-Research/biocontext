@@ -174,6 +174,62 @@ class HGNCAdapter(BaseBioAdapter):
             return await self.fetch_by_symbol(primary_symbol)
         return None
 
+    async def search_fuzzy(self, query: str, max_distance: int = 2) -> List[GeneEntity]:
+        """Search HGNC for approximate matches using prefix/wildcard search and Levenshtein distance."""
+        query_upper = query.upper().strip()
+        if len(query_upper) < 3:
+            return []
+
+        # Prefix wildcard search on HGNC (e.g. TP5* or BRC*)
+        prefix = query_upper[:max(3, len(query_upper) - 1)]
+        url = f"{self.BASE_URL}/search/symbol/{prefix}*"
+        candidates: List[str] = []
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code == 200:
+                    docs = resp.json().get("response", {}).get("docs", [])
+                    for d in docs:
+                        sym = d.get("symbol")
+                        if sym:
+                            candidates.append(sym)
+            except Exception as e:
+                logger.warning(f"HGNC wildcard search failed | query={query} error={e}")
+
+        # Levenshtein distance calculation
+        def levenshtein(s1: str, s2: str) -> int:
+            if len(s1) < len(s2):
+                return levenshtein(s2, s1)
+            if len(s2) == 0:
+                return len(s1)
+            previous_row = range(len(s2) + 1)
+            for i, c1 in enumerate(s1):
+                current_row = [i + 1]
+                for j, c2 in enumerate(s2):
+                    insertions = previous_row[j + 1] + 1
+                    deletions = current_row[j] + 1
+                    substitutions = previous_row[j] + (c1 != c2)
+                    current_row.append(min(insertions, deletions, substitutions))
+                previous_row = current_row
+            return previous_row[-1]
+
+        matched_symbols = []
+        for cand in candidates:
+            dist = levenshtein(query_upper, cand.upper())
+            if 0 < dist <= max_distance:
+                matched_symbols.append((dist, cand))
+
+        matched_symbols.sort(key=lambda x: x[0])
+        results: List[GeneEntity] = []
+        for _, sym in matched_symbols[:5]:
+            gene = await self.fetch_by_symbol(sym)
+            if gene:
+                results.append(gene)
+
+        return results
+
+
     async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
         if taxon_id != 9606:
             return None
@@ -597,16 +653,28 @@ class EnsemblAdapter(BaseBioAdapter):
         url = f"{self.BASE_URL}/homology/id/{source_slug}/{gene_id.upper()}"
         params = {"target_species": target_slug, "type": "orthologues"}
 
-        await self.rate_limiter.acquire()
-        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
-            try:
-                resp = await client.get(url, params=params, headers=self.headers)
-                if resp.status_code != 200:
-                    return []
-                data = resp.json()
-            except Exception as e:
-                logger.warning(f"Ensembl homology lookup failed | gene={gene_id} target={target_slug} error={e}")
-                return []
+        data = None
+        for attempt in range(3):
+            await self.rate_limiter.acquire()
+            async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+                try:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    elif resp.status_code == 429:
+                        logger.warning("Ensembl 429 rate limit hit, cooling down...")
+                        import asyncio
+                        await asyncio.sleep(1.0)
+                except Exception as e:
+                    logger.warning(f"Ensembl homology attempt {attempt + 1} failed | gene={gene_id} target={target_slug} error={e}")
+                    if attempt == 2:
+                        return []
+                    import asyncio
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return []
+
 
         homologies = data.get("data", [{}])[0].get("homologies", [])
         orthologs: List[OrthologEntity] = []

@@ -136,3 +136,16 @@ async def test_ensembl_ortholog_retrieval(resolver):
     assert mouse_ortholog.percent_identity > 70.0
 
 
+@pytest.mark.asyncio
+async def test_fuzzy_resolution_typo(resolver):
+    # Test typo "TP54" resolves approximately to "TP53"
+    result = await resolver.resolve("TP54")
+    assert result.match_status == "fuzzy"
+    assert result.confidence_score >= 0.70
+    assert result.resolved_entity is not None
+    assert result.resolved_entity.symbol == "TP53"
+    rules = [r.rule for r in result.match_reasons]
+    assert "fuzzy_levenshtein_match" in rules
+
+
+
