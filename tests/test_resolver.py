@@ -121,9 +121,9 @@ async def test_ensembl_transcripts_retrieval(resolver):
 
 @pytest.mark.asyncio
 async def test_ensembl_ortholog_retrieval(resolver):
-    # Test human TP53 -> mouse ortholog (Trp53 / ENSMUSG00000059552)
+    # Test human TP53 (ENSG00000141510) -> mouse ortholog (Trp53 / ENSMUSG00000059552)
     orthologs = await resolver.ensembl.fetch_orthologs(
-        gene_id_or_symbol="TP53",
+        gene_id_or_symbol="ENSG00000141510",
         target_species="mus_musculus",
         source_species="homo_sapiens"
     )
