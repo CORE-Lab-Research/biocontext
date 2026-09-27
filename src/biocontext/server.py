@@ -69,6 +69,55 @@ async def batch_resolve_genes(queries: list[str], taxon_id: int = 9606) -> str:
     return "[" + ",\n".join(r.model_dump_json(indent=2) for r in results) + "]"
 
 
+@mcp.tool()
+async def get_transcripts(query: str, species: str = "homo_sapiens") -> str:
+    """Fetch transcripts, canonical isoform, and exon structures from Ensembl.
+
+    Args:
+        query: Ensembl Gene ID (e.g. ENSG00000141510) or gene symbol (e.g. TP53).
+        species: Species name (default: 'homo_sapiens' or 'mus_musculus').
+
+    Returns:
+        JSON string containing gene coordinates and transcript variants with exon models.
+    """
+    query_clean = query.strip()
+    if query_clean.upper().startswith("ENS"):
+        gene = await resolver.ensembl.fetch_by_id(query_clean, expand=True)
+    else:
+        gene = await resolver.ensembl.fetch_by_symbol(species=species, symbol=query_clean, expand=True)
+
+    if not gene:
+        return '{"status": "not_found", "query": "%s", "species": "%s"}' % (query_clean, species)
+
+    return gene.model_dump_json(indent=2)
+
+
+@mcp.tool()
+async def find_orthologs(
+    query: str,
+    target_species: str = "mus_musculus",
+    source_species: str = "homo_sapiens"
+) -> str:
+    """Identify corresponding orthologous genes across species via Ensembl.
+
+    Args:
+        query: Gene symbol (e.g. TP53) or Ensembl Gene ID (e.g. ENSG00000141510).
+        target_species: Target species (default: 'mus_musculus', 'danio_rerio', etc.).
+        source_species: Source species (default: 'homo_sapiens').
+
+    Returns:
+        JSON string containing list of orthologous genes with identity and relation type.
+    """
+    orthologs = await resolver.ensembl.fetch_orthologs(
+        gene_id_or_symbol=query,
+        target_species=target_species,
+        source_species=source_species
+    )
+    return "[" + ",\n".join(o.model_dump_json(indent=2) for o in orthologs) + "]"
+
+
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")

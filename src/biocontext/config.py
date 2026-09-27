@@ -14,11 +14,14 @@ class ScoringConfig:
     PREV_SYMBOL_CONFIDENCE: float = 0.90
     ALIAS_MATCH_CONFIDENCE: float = 0.85
     NCBI_SEARCH_CONFIDENCE: float = 0.90
+    FUZZY_MATCH_CONFIDENCE: float = 0.75
+    FUZZY_MAX_DISTANCE: int = 2
 
     # Contextual disambiguation adjustments
     CHROMOSOME_MATCH_BONUS: float = 0.05
     CHROMOSOME_MISMATCH_PENALTY: float = 0.40
     LOCUS_TYPE_MISMATCH_PENALTY: float = 0.30
+
 
 
 class RateLimitConfig:
@@ -27,6 +30,9 @@ class RateLimitConfig:
     NCBI_WITH_KEY_RPS: float = 9.5
     HGNC_TIMEOUT_SEC: float = 10.0
     UNIPROT_TIMEOUT_SEC: float = 10.0
+    ENSEMBL_RPS: float = 14.0  # Ensembl allows up to 15 req/sec
+    ENSEMBL_TIMEOUT_SEC: float = 15.0
+
 
 
 class ClientConfig:
@@ -86,6 +92,25 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["accession"], "help": "UniProt accession ID (e.g. P04637)"}
         ]
     },
+    {
+        "name": "transcripts",
+        "help": "Fetch gene coordinates and transcript variants from Ensembl",
+        "arguments": [
+            {"flags": ["query"], "help": "Ensembl Gene ID (e.g. ENSG00000141510) or gene symbol (e.g. TP53)"},
+            {"flags": ["--species"], "type": str, "default": "homo_sapiens", "help": "Species name (default: homo_sapiens)"}
+        ]
+    },
+    {
+        "name": "ortholog",
+        "help": "Identify orthologous genes across species via Ensembl",
+        "arguments": [
+            {"flags": ["query"], "help": "Gene symbol (e.g. TP53) or Ensembl Gene ID"},
+            {"flags": ["--target"], "type": str, "default": "mus_musculus", "help": "Target species (default: mus_musculus)"},
+            {"flags": ["--source"], "type": str, "default": "homo_sapiens", "help": "Source species (default: homo_sapiens)"}
+        ]
+    },
+
+
     {
         "name": "cache",
         "help": "Inspect or clear persistent local SQLite cache",

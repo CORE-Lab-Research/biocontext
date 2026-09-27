@@ -7,11 +7,20 @@ import httpx
 import os
 
 from biocontext.base import AsyncRateLimiter, BaseBioAdapter, SQLiteCache
-from biocontext.config import ClientConfig
+from biocontext.config import ClientConfig, RateLimitConfig
 from biocontext.logging import get_logger
-from biocontext.schemas import GeneEntity, GenomicLocation, ProteinEntity
+from biocontext.schemas import (
+    ExonEntity,
+    GeneEntity,
+    GenomicLocation,
+    OrthologEntity,
+    ProteinEntity,
+    TranscriptEntity,
+)
+
 
 logger = get_logger("adapters")
+
 
 
 class HGNCAdapter(BaseBioAdapter):
@@ -164,6 +173,62 @@ class HGNCAdapter(BaseBioAdapter):
         if primary_symbol:
             return await self.fetch_by_symbol(primary_symbol)
         return None
+
+    async def search_fuzzy(self, query: str, max_distance: int = 2) -> List[GeneEntity]:
+        """Search HGNC for approximate matches using prefix/wildcard search and Levenshtein distance."""
+        query_upper = query.upper().strip()
+        if len(query_upper) < 3:
+            return []
+
+        # Prefix wildcard search on HGNC (e.g. TP5* or BRC*)
+        prefix = query_upper[:max(3, len(query_upper) - 1)]
+        url = f"{self.BASE_URL}/search/symbol/{prefix}*"
+        candidates: List[str] = []
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code == 200:
+                    docs = resp.json().get("response", {}).get("docs", [])
+                    for d in docs:
+                        sym = d.get("symbol")
+                        if sym:
+                            candidates.append(sym)
+            except Exception as e:
+                logger.warning(f"HGNC wildcard search failed | query={query} error={e}")
+
+        # Levenshtein distance calculation
+        def levenshtein(s1: str, s2: str) -> int:
+            if len(s1) < len(s2):
+                return levenshtein(s2, s1)
+            if len(s2) == 0:
+                return len(s1)
+            previous_row = range(len(s2) + 1)
+            for i, c1 in enumerate(s1):
+                current_row = [i + 1]
+                for j, c2 in enumerate(s2):
+                    insertions = previous_row[j + 1] + 1
+                    deletions = current_row[j] + 1
+                    substitutions = previous_row[j] + (c1 != c2)
+                    current_row.append(min(insertions, deletions, substitutions))
+                previous_row = current_row
+            return previous_row[-1]
+
+        matched_symbols = []
+        for cand in candidates:
+            dist = levenshtein(query_upper, cand.upper())
+            if 0 < dist <= max_distance:
+                matched_symbols.append((dist, cand))
+
+        matched_symbols.sort(key=lambda x: x[0])
+        results: List[GeneEntity] = []
+        for _, sym in matched_symbols[:5]:
+            gene = await self.fetch_by_symbol(sym)
+            if gene:
+                results.append(gene)
+
+        return results
+
 
     async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
         if taxon_id != 9606:
@@ -401,3 +466,240 @@ class NCBIAdapter(BaseBioAdapter):
             self.cache.set("ncbi", cache_key, gene.model_dump())
             return {"entity": gene, "rule": "ncbi_search", "confidence": 0.9}
         return None
+
+
+class EnsemblAdapter(BaseBioAdapter):
+    """Adapter for Ensembl REST API (v15+).
+    Primary authority for genomic coordinates, gene models, canonical transcripts, and isoforms.
+    """
+
+    BASE_URL = "https://rest.ensembl.org"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="Ensembl", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.ENSEMBL_RPS)
+
+    def _parse_gene_data(self, data: Dict[str, Any]) -> GeneEntity:
+        ensembl_id = data.get("id")
+        symbol = data.get("display_name") or ensembl_id
+        description = data.get("description")
+        biotype = data.get("biotype")
+        species = data.get("species", "homo_sapiens").replace("_", " ").capitalize()
+
+        # Coordinates
+        seq_region = data.get("seq_region_name", "")
+        start = data.get("start")
+        end = data.get("end")
+        strand_num = data.get("strand")
+        strand = "+" if strand_num == 1 else ("-" if strand_num == -1 else None)
+        assembly = data.get("assembly_name", "GRCh38")
+
+        location = GenomicLocation(
+            chromosome=seq_region,
+            start=start,
+            end=end,
+            strand=strand,
+            assembly=assembly
+        )
+
+        # Transcripts parsing
+        transcripts: List[TranscriptEntity] = []
+        raw_transcripts = data.get("Transcript", [])
+        for t in raw_transcripts:
+            t_id = t.get("id")
+            t_name = t.get("display_name")
+            is_canon = bool(t.get("is_canonical", 0))
+            t_biotype = t.get("biotype")
+            t_len = t.get("length")
+            t_start = t.get("start")
+            t_end = t.get("end")
+            
+            # Translation / protein ID
+            trans_obj = t.get("Translation")
+            prot_id = trans_obj.get("id") if trans_obj else None
+
+            # Exons
+            exons: List[ExonEntity] = []
+            for e in t.get("Exon", []):
+                e_id = e.get("id")
+                e_start = e.get("start")
+                e_end = e.get("end")
+                e_strand = "+" if e.get("strand") == 1 else ("-" if e.get("strand") == -1 else None)
+                if e_id and e_start and e_end:
+                    exons.append(ExonEntity(exon_id=e_id, start=e_start, end=e_end, strand=e_strand))
+
+            transcripts.append(
+                TranscriptEntity(
+                    transcript_id=t_id,
+                    name=t_name,
+                    is_canonical=is_canon,
+                    biotype=t_biotype,
+                    length=t_len,
+                    protein_id=prot_id,
+                    start=t_start,
+                    end=t_end,
+                    exons=exons
+                )
+            )
+
+        # Default taxon_id heuristic
+        taxon_id = 9606 if "homo" in species.lower() else (10090 if "mus" in species.lower() else 0)
+
+        return GeneEntity(
+            symbol=symbol,
+            name=description,
+            taxon_id=taxon_id,
+            species=species,
+            ensembl_gene_id=ensembl_id,
+            locus_type=biotype,
+            location=location,
+            transcripts=transcripts
+        )
+
+    async def fetch_by_id(self, ensembl_id: str, expand: bool = True) -> Optional[GeneEntity]:
+        """Fetch gene model and transcript annotations by Ensembl Gene ID (e.g. ENSG00000141510)."""
+        cache_key = f"id:{ensembl_id.upper()}:expand={expand}"
+        cached = self.cache.get("ensembl", cache_key)
+        if cached:
+            return GeneEntity(**cached)
+
+        url = f"{self.BASE_URL}/lookup/id/{ensembl_id.upper()}"
+        params = {"expand": "1" if expand else "0"}
+
+        await self.rate_limiter.acquire()
+        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+            try:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    return None
+                data = resp.json()
+            except Exception as e:
+                logger.warning(f"Ensembl lookup by ID failed | id={ensembl_id} error={e}")
+                return None
+
+        gene = self._parse_gene_data(data)
+        self.cache.set("ensembl", cache_key, gene.model_dump())
+        return gene
+
+    async def fetch_by_symbol(self, species: str, symbol: str, expand: bool = True) -> Optional[GeneEntity]:
+        """Fetch gene model and coordinates by species and approved symbol (e.g. 'homo_sapiens', 'TP53')."""
+        species_slug = species.lower().replace(" ", "_")
+        cache_key = f"symbol:{species_slug}:{symbol.upper()}:expand={expand}"
+        cached = self.cache.get("ensembl", cache_key)
+        if cached:
+            return GeneEntity(**cached)
+
+        url = f"{self.BASE_URL}/lookup/symbol/{species_slug}/{symbol.upper()}"
+        params = {"expand": "1" if expand else "0"}
+
+        await self.rate_limiter.acquire()
+        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+            try:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    return None
+                data = resp.json()
+            except Exception as e:
+                logger.warning(f"Ensembl lookup by symbol failed | symbol={symbol} species={species} error={e}")
+                return None
+
+        gene = self._parse_gene_data(data)
+        self.cache.set("ensembl", cache_key, gene.model_dump())
+        return gene
+
+    async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
+        """Resolve a gene query string via Ensembl lookup by ID or symbol."""
+        query_clean = query.strip()
+        # 1. Direct Ensembl Gene ID lookup (e.g. ENSG... or ENSMUSG...)
+        if query_clean.upper().startswith("ENS"):
+            gene = await self.fetch_by_id(query_clean)
+            if gene:
+                return {"entity": gene, "rule": "ensembl_id_lookup", "confidence": 1.0}
+
+        # 2. Symbol lookup
+        species = "homo_sapiens" if taxon_id == 9606 else ("mus_musculus" if taxon_id == 10090 else "homo_sapiens")
+        gene = await self.fetch_by_symbol(species=species, symbol=query_clean)
+        if gene:
+            return {"entity": gene, "rule": "ensembl_symbol_lookup", "confidence": 0.95}
+
+        return None
+
+    async def fetch_orthologs(
+        self,
+        gene_id_or_symbol: str,
+        target_species: str = "mus_musculus",
+        source_species: str = "homo_sapiens"
+    ) -> List[OrthologEntity]:
+        """Fetch orthologous genes across species via Ensembl Homology REST API."""
+        source_slug = source_species.lower().replace(" ", "_")
+        target_slug = target_species.lower().replace(" ", "_")
+        query_clean = gene_id_or_symbol.strip()
+
+        # If symbol provided instead of Ensembl Gene ID, resolve symbol first
+        gene_id = query_clean
+        if not query_clean.upper().startswith("ENS"):
+            gene = await self.fetch_by_symbol(species=source_slug, symbol=query_clean, expand=False)
+            if not gene or not gene.ensembl_gene_id:
+                return []
+            gene_id = gene.ensembl_gene_id
+
+        cache_key = f"orthologs:{source_slug}:{gene_id.upper()}:{target_slug}"
+        cached = self.cache.get("ensembl", cache_key)
+        if cached and "items" in cached:
+            return [OrthologEntity(**item) for item in cached["items"]]
+
+        url = f"{self.BASE_URL}/homology/id/{source_slug}/{gene_id.upper()}"
+        params = {"target_species": target_slug, "type": "orthologues"}
+
+        data = None
+        for attempt in range(3):
+            await self.rate_limiter.acquire()
+            async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+                try:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    elif resp.status_code == 429:
+                        logger.warning("Ensembl 429 rate limit hit, cooling down...")
+                        import asyncio
+                        await asyncio.sleep(1.0)
+                except Exception as e:
+                    logger.warning(f"Ensembl homology attempt {attempt + 1} failed | gene={gene_id} target={target_slug} error={e}")
+                    if attempt == 2:
+                        return []
+                    import asyncio
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return []
+
+
+        homologies = data.get("data", [{}])[0].get("homologies", [])
+        orthologs: List[OrthologEntity] = []
+
+        for h in homologies:
+            target = h.get("target", {})
+            target_id = target.get("id")
+            if not target_id:
+                continue
+
+            orthologs.append(
+                OrthologEntity(
+                    source_gene_id=gene_id,
+                    source_species=source_slug,
+                    target_gene_id=target_id,
+                    target_species=target.get("species", target_slug),
+                    orthology_type=h.get("type", "ortholog"),
+                    percent_identity=target.get("perc_id"),
+                    target_protein_id=target.get("protein_id")
+                )
+            )
+
+        self.cache.set("ensembl", cache_key, {"items": [o.model_dump() for o in orthologs]})
+        return orthologs
+
+
+
+
