@@ -50,7 +50,7 @@ Install `biocontext` globally into your system path using `uv tool`:
 
 ```bash
 # Install directly from GitHub
-uv tool install git+https://github.com/engkinandatama/biocontext.git
+uv tool install git+https://github.com/CORE-Lab-Research/biocontext.git
 ```
 
 Once installed, the `biocontext` command is available everywhere across your terminal.
@@ -65,7 +65,7 @@ uv tool upgrade biocontext
 If you are developing or contributing to the codebase:
 
 ```bash
-git clone https://github.com/engkinandatama/biocontext.git
+git clone https://github.com/CORE-Lab-Research/biocontext.git
 cd biocontext
 
 # Install editable tool locally
@@ -123,7 +123,7 @@ If `uv` is installed on your system, you or any user can run BioContext directly
       "command": "uvx",
       "args": [
         "--from",
-        "git+https://github.com/engkinandatama/biocontext.git",
+        "git+https://github.com/CORE-Lab-Research/biocontext.git",
         "biocontext"
       ]
     }
@@ -274,7 +274,7 @@ If you use BioContext in your scientific research or software workflows, please 
   author = {Nandatama, Engki},
   title = {BioContext: Authoritative Biological Entity Resolution & Contextual Intelligence Framework},
   year = {2026},
-  url = {https://github.com/engkinandatama/biocontext},
+  url = {https://github.com/CORE-Lab-Research/biocontext},
   version = {0.1.0}
 }
 ```
