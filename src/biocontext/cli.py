@@ -92,6 +92,20 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print("[" + ",\n".join(o.model_dump_json(indent=2) for o in orthologs) + "]")
         return 0
 
+    elif args.command == "mouse":
+        clean_q = args.query.strip()
+        if clean_q.upper().startswith("MGI:"):
+            gene = await resolver.mgi.fetch_by_mgi_id(clean_q)
+            if gene:
+                print(gene.model_dump_json(indent=2))
+                return 0
+        res = await resolver.resolve(query=clean_q, taxon_id=10090)
+        if res and res.resolved_entity:
+            print(res.resolved_entity.model_dump_json(indent=2))
+            return 0
+        print(json.dumps({"status": "not_found", "query": clean_q, "taxon_id": 10090}, indent=2))
+        return 1
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -124,7 +138,7 @@ def main():
     elif args.command == "test":
         import pytest
         sys.exit(pytest.main(["tests/", "-v"]))
-    elif args.command in ("resolve", "batch", "protein", "transcripts", "ortholog", "cache"):
+    elif args.command in ("resolve", "batch", "protein", "transcripts", "ortholog", "mouse", "cache"):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
         parser.print_help()

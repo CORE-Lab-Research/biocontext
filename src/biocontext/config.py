@@ -32,6 +32,8 @@ class RateLimitConfig:
     UNIPROT_TIMEOUT_SEC: float = 10.0
     ENSEMBL_RPS: float = 14.0  # Ensembl allows up to 15 req/sec
     ENSEMBL_TIMEOUT_SEC: float = 15.0
+    MGI_RPS: float = 5.0
+    MGI_TIMEOUT_SEC: float = 15.0
 
 
 
@@ -107,6 +109,13 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["query"], "help": "Gene symbol (e.g. TP53) or Ensembl Gene ID"},
             {"flags": ["--target"], "type": str, "default": "mus_musculus", "help": "Target species (default: mus_musculus)"},
             {"flags": ["--source"], "type": str, "default": "homo_sapiens", "help": "Source species (default: homo_sapiens)"}
+        ]
+    },
+    {
+        "name": "mouse",
+        "help": "Resolve mouse gene details and MGI identifiers (Mus musculus)",
+        "arguments": [
+            {"flags": ["query"], "help": "Mouse gene symbol (e.g. Trp53) or MGI identifier (e.g. MGI:98834)"}
         ]
     },
 

@@ -116,6 +116,29 @@ async def find_orthologs(
     return "[" + ",\n".join(o.model_dump_json(indent=2) for o in orthologs) + "]"
 
 
+@mcp.tool()
+async def get_mouse_gene(query: str) -> str:
+    """Resolve mouse gene details and MGI identifiers (Mus musculus).
+
+    Args:
+        query: Mouse gene symbol (e.g. 'Trp53') or MGI ID (e.g. 'MGI:98834') or Ensembl ID.
+
+    Returns:
+        JSON string containing the resolved mouse gene entity with MGI identifier.
+    """
+    clean_q = query.strip()
+    if clean_q.upper().startswith("MGI:"):
+        gene = await resolver.mgi.fetch_by_mgi_id(clean_q)
+        if gene:
+            return gene.model_dump_json(indent=2)
+
+    res = await resolver.resolve(query=clean_q, taxon_id=10090)
+    if res and res.resolved_entity:
+        return res.resolved_entity.model_dump_json(indent=2)
+
+    return '{"status": "not_found", "query": "%s", "taxon_id": 10090}' % clean_q
+
+
 
 
 def main():

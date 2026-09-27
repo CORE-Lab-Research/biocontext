@@ -39,9 +39,10 @@ BENCHMARK_DATA = [
     {"query": "P38398", "taxon": 9606, "expected_symbol": "BRCA1", "expected_status": "exact"},
     {"query": "P00533", "taxon": 9606, "expected_symbol": "EGFR", "expected_status": "exact"},
 
-    # 24-25: Cross-species (Mus musculus - taxon 10090)
+    # 24-26: Cross-species (Mus musculus - taxon 10090)
     {"query": "Trp53", "taxon": 10090, "expected_symbol": "Trp53", "expected_status": "ncbi_matched"},
     {"query": "22059", "taxon": 10090, "expected_symbol": "Trp53", "expected_status": "exact"},
+    {"query": "MGI:98834", "taxon": 10090, "expected_symbol": "Trp53", "expected_status": "exact"},
 ]
 
 

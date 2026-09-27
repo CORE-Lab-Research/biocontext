@@ -1,0 +1,49 @@
+name: Bug report
+description: Create a report to help us improve BioContext
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a bug!
+  - type: input
+    id: version
+    attributes:
+      label: BioContext Version
+      description: What version of BioContext are you using? (e.g., `biocontext --version`)
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps To Reproduce
+      description: Steps or Python code snippet to reproduce the behavior.
+      placeholder: |
+        ```python
+        import asyncio
+        from biocontext.resolver import EntityResolver
+        async def run():
+            r = EntityResolver()
+            res = await r.resolve("...")
+        asyncio.run(run())
+        ```
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output or Traceback
+      render: shell

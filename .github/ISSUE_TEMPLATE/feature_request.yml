@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest an idea or new database adapter for BioContext
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: Thank you for suggesting a feature or new data adapter!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: Is your feature request related to a specific biological database or workflow gap?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution / Adapter
+      description: Describe the solution you'd like (e.g. adding WormBase adapter for C. elegans).
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Any alternative solutions or workarounds you've considered.

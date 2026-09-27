@@ -57,6 +57,7 @@ class GeneEntity(BaseModel):
     hgnc_id: Optional[str] = Field(None, description="HGNC ID (e.g. HGNC:11998)")
     ncbi_gene_id: Optional[str] = Field(None, description="NCBI Entrez Gene ID (e.g. 7157)")
     ensembl_gene_id: Optional[str] = Field(None, description="Ensembl Gene ID (e.g. ENSG00000141510)")
+    mgi_id: Optional[str] = Field(None, description="MGI identifier for mouse genes (e.g. MGI:98834)")
     uniprot_ids: List[str] = Field(default_factory=list, description="Associated UniProt accession IDs")
     
     synonyms: List[str] = Field(default_factory=list, description="Alternative symbols / aliases")
