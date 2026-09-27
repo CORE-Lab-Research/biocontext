@@ -88,3 +88,33 @@ async def test_disambiguation_with_mismatching_chromosome(resolver):
     assert result.confidence_score == 0.60
     rules = [r.rule for r in result.match_reasons]
     assert "chromosome_mismatch" in rules
+
+
+@pytest.mark.asyncio
+async def test_ensembl_id_resolution(resolver):
+    # ENSG00000141510 is Ensembl ID for TP53
+    result = await resolver.resolve("ENSG00000141510")
+    assert result.match_status == "exact"
+    assert result.confidence_score == 1.0
+    assert result.resolved_entity is not None
+    assert result.resolved_entity.symbol == "TP53"
+    assert result.resolved_entity.ensembl_gene_id == "ENSG00000141510"
+    assert result.resolved_entity.location is not None
+    assert result.resolved_entity.location.chromosome == "17"
+    assert len(result.resolved_entity.transcripts) > 0
+
+
+@pytest.mark.asyncio
+async def test_ensembl_transcripts_retrieval(resolver):
+    gene = await resolver.ensembl.fetch_by_symbol(species="homo_sapiens", symbol="TP53")
+    assert gene is not None
+    assert gene.ensembl_gene_id == "ENSG00000141510"
+    assert gene.location.start is not None
+    assert gene.location.end is not None
+    assert gene.location.strand == "-"
+    canonical_list = [t for t in gene.transcripts if t.is_canonical]
+    assert len(canonical_list) >= 1
+    canon = canonical_list[0]
+    assert canon.transcript_id.startswith("ENST")
+    assert len(canon.exons) > 0
+

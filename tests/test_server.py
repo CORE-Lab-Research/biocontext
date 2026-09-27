@@ -2,7 +2,7 @@
 
 import json
 import pytest
-from biocontext.server import batch_resolve_genes, get_protein_info, resolve_gene
+from biocontext.server import batch_resolve_genes, get_protein_info, get_transcripts, resolve_gene
 
 
 @pytest.mark.asyncio
@@ -29,3 +29,13 @@ async def test_mcp_tool_batch_resolve():
     symbols = [item["resolved_entity"]["symbol"] for item in res if item["resolved_entity"]]
     assert "TP53" in symbols
     assert "ERBB2" in symbols
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_get_transcripts():
+    res_str = await get_transcripts("TP53")
+    res = json.loads(res_str)
+    assert res["symbol"] == "TP53"
+    assert res["ensembl_gene_id"] == "ENSG00000141510"
+    assert len(res["transcripts"]) > 0
+

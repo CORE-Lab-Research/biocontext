@@ -1,7 +1,7 @@
 """Entity Resolution Engine resolving queries across biological authorities."""
 
 from typing import List, Optional
-from biocontext.adapters import HGNCAdapter, NCBIAdapter, UniProtAdapter
+from biocontext.adapters import EnsemblAdapter, HGNCAdapter, NCBIAdapter, UniProtAdapter
 from biocontext.base import SQLiteCache
 from biocontext.config import ScoringConfig
 from biocontext.logging import get_logger
@@ -24,6 +24,8 @@ class EntityResolver:
         self.hgnc = HGNCAdapter(cache=self.cache, email=email)
         self.ncbi = NCBIAdapter(cache=self.cache, api_key=ncbi_api_key, email=email, tool=tool)
         self.uniprot = UniProtAdapter(cache=self.cache, email=email)
+        self.ensembl = EnsemblAdapter(cache=self.cache, email=email)
+
 
 
     def _apply_context_clues(
@@ -119,7 +121,28 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
-        # 2. If query is numeric (Entrez ID) and human (9606), check HGNC first (authoritative and no strict 3 req/s throttle)
+        # 2. Check Ensembl Gene ID (e.g. ENSG... or ENSMUSG...)
+        if query_clean.upper().startswith("ENS"):
+            ens_gene = await self.ensembl.fetch_by_id(query_clean)
+            if ens_gene:
+                reasons.append(
+                    MatchReason(
+                        source="Ensembl",
+                        rule="ensembl_id_lookup",
+                        confidence=1.0,
+                        details=f"Direct Ensembl Gene ID lookup matched '{query_clean}' to symbol '{ens_gene.symbol}'"
+                    )
+                )
+                final_confidence = self._apply_context_clues(ens_gene, context, 1.0, reasons)
+                return ResolutionResult(
+                    query=query_clean,
+                    match_status="exact",
+                    confidence_score=final_confidence,
+                    resolved_entity=ens_gene,
+                    match_reasons=reasons
+                )
+
+        # 3. If query is numeric (Entrez ID) and human (9606), check HGNC first (authoritative and no strict 3 req/s throttle)
         if query_clean.isdigit() and taxon_id == 9606:
             hgnc_entrez_gene = await self.hgnc.fetch_by_entrez_id(query_clean)
             if hgnc_entrez_gene:
@@ -140,7 +163,8 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
-        # 3. Check Entrez Gene ID lookup or cross-species / fallback via NCBI
+        # 4. Check Entrez Gene ID lookup or cross-species / fallback via NCBI
+
         ncbi_res = await self.ncbi.resolve_gene(query_clean, taxon_id=taxon_id)
         if ncbi_res:
             ncbi_gene = ncbi_res["entity"]

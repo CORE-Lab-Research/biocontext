@@ -69,6 +69,30 @@ async def batch_resolve_genes(queries: list[str], taxon_id: int = 9606) -> str:
     return "[" + ",\n".join(r.model_dump_json(indent=2) for r in results) + "]"
 
 
+@mcp.tool()
+async def get_transcripts(query: str, species: str = "homo_sapiens") -> str:
+    """Fetch transcripts, canonical isoform, and exon structures from Ensembl.
+
+    Args:
+        query: Ensembl Gene ID (e.g. ENSG00000141510) or gene symbol (e.g. TP53).
+        species: Species name (default: 'homo_sapiens' or 'mus_musculus').
+
+    Returns:
+        JSON string containing gene coordinates and transcript variants with exon models.
+    """
+    query_clean = query.strip()
+    if query_clean.upper().startswith("ENS"):
+        gene = await resolver.ensembl.fetch_by_id(query_clean, expand=True)
+    else:
+        gene = await resolver.ensembl.fetch_by_symbol(species=species, symbol=query_clean, expand=True)
+
+    if not gene:
+        return '{"status": "not_found", "query": "%s", "species": "%s"}' % (query_clean, species)
+
+    return gene.model_dump_json(indent=2)
+
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")

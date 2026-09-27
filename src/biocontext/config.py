@@ -27,6 +27,9 @@ class RateLimitConfig:
     NCBI_WITH_KEY_RPS: float = 9.5
     HGNC_TIMEOUT_SEC: float = 10.0
     UNIPROT_TIMEOUT_SEC: float = 10.0
+    ENSEMBL_RPS: float = 14.0  # Ensembl allows up to 15 req/sec
+    ENSEMBL_TIMEOUT_SEC: float = 15.0
+
 
 
 class ClientConfig:
@@ -86,6 +89,15 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["accession"], "help": "UniProt accession ID (e.g. P04637)"}
         ]
     },
+    {
+        "name": "transcripts",
+        "help": "Fetch gene coordinates and transcript variants from Ensembl",
+        "arguments": [
+            {"flags": ["query"], "help": "Ensembl Gene ID (e.g. ENSG00000141510) or gene symbol (e.g. TP53)"},
+            {"flags": ["--species"], "type": str, "default": "homo_sapiens", "help": "Species name (default: homo_sapiens)"}
+        ]
+    },
+
     {
         "name": "cache",
         "help": "Inspect or clear persistent local SQLite cache",

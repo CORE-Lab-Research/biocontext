@@ -13,6 +13,27 @@ class GenomicLocation(BaseModel):
     assembly: str = Field("GRCh38", description="Genome build/assembly version")
 
 
+class ExonEntity(BaseModel):
+    """Genomic coordinates for a single exon."""
+    exon_id: str = Field(..., description="Ensembl exon identifier, e.g. 'ENSE00003505295'")
+    start: int = Field(..., description="1-based start coordinate")
+    end: int = Field(..., description="1-based end coordinate")
+    strand: Optional[str] = Field(None, description="Strand: '+' or '-'")
+
+
+class TranscriptEntity(BaseModel):
+    """Transcript model associated with a gene."""
+    transcript_id: str = Field(..., description="Ensembl transcript ID, e.g. 'ENST00000269305'")
+    name: Optional[str] = Field(None, description="Transcript name, e.g. 'TP53-201'")
+    is_canonical: bool = Field(False, description="Flag indicating if this is the Ensembl canonical transcript")
+    biotype: Optional[str] = Field(None, description="Biotype, e.g. 'protein_coding'")
+    length: Optional[int] = Field(None, description="Length in base pairs")
+    protein_id: Optional[str] = Field(None, description="Ensembl translation/protein ID, e.g. 'ENSP00000269305'")
+    start: Optional[int] = Field(None, description="Genomic start position")
+    end: Optional[int] = Field(None, description="Genomic end position")
+    exons: List[ExonEntity] = Field(default_factory=list, description="Exons making up this transcript")
+
+
 class GeneEntity(BaseModel):
     """Standardized representation of a gene entity."""
     symbol: str = Field(..., description="Approved standard gene symbol (e.g. TP53)")
@@ -29,6 +50,8 @@ class GeneEntity(BaseModel):
     synonyms: List[str] = Field(default_factory=list, description="Alternative symbols / aliases")
     locus_type: Optional[str] = Field(None, description="Locus group/type (e.g. protein-coding gene)")
     location: Optional[GenomicLocation] = Field(None, description="Genomic coordinates")
+    transcripts: List[TranscriptEntity] = Field(default_factory=list, description="Associated transcript variants")
+
 
 
 class ProteinEntity(BaseModel):

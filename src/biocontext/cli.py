@@ -70,6 +70,20 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(protein.model_dump_json(indent=2))
         return 0
 
+    elif args.command == "transcripts":
+        query_clean = args.query.strip()
+        if query_clean.upper().startswith("ENS"):
+            gene = await resolver.ensembl.fetch_by_id(query_clean, expand=True)
+        else:
+            gene = await resolver.ensembl.fetch_by_symbol(species=args.species, symbol=query_clean, expand=True)
+
+        if not gene:
+            print(json.dumps({"status": "not_found", "query": args.query, "species": args.species}, indent=2))
+            return 1
+        print(gene.model_dump_json(indent=2))
+        return 0
+
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -102,10 +116,11 @@ def main():
     elif args.command == "test":
         import pytest
         sys.exit(pytest.main(["tests/", "-v"]))
-    elif args.command in ("resolve", "batch", "protein", "cache"):
+    elif args.command in ("resolve", "batch", "protein", "transcripts", "cache"):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
         parser.print_help()
+
 
 
 if __name__ == "__main__":
