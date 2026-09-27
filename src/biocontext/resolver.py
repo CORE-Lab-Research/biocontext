@@ -3,8 +3,9 @@
 from typing import List, Optional
 from biocontext.adapters import HGNCAdapter, NCBIAdapter, UniProtAdapter
 from biocontext.base import SQLiteCache
+from biocontext.config import ScoringConfig
 from biocontext.logging import get_logger
-from biocontext.schemas import MatchReason, ResolutionResult
+from biocontext.schemas import MatchReason, ResolutionContext, ResolutionResult
 
 logger = get_logger("resolver")
 
@@ -18,7 +19,59 @@ class EntityResolver:
         self.ncbi = NCBIAdapter(cache=self.cache, api_key=ncbi_api_key)
         self.uniprot = UniProtAdapter(cache=self.cache)
 
-    async def resolve(self, query: str, taxon_id: int = 9606) -> ResolutionResult:
+    def _apply_context_clues(
+        self, gene, context: Optional[ResolutionContext], base_confidence: float, reasons: List[MatchReason]
+    ) -> float:
+        if not context or not gene:
+            return base_confidence
+
+        confidence = base_confidence
+
+        # Chromosome disambiguation
+        if context.chromosome and gene.location and gene.location.chromosome:
+            hint_chr = context.chromosome.lower().replace("chr", "")
+            gene_chr = gene.location.chromosome.lower().replace("chr", "")
+
+            # Match prefix e.g. "17" matches "17p13.1" or "17q12"
+            if gene_chr.startswith(hint_chr):
+                confidence = min(1.0, confidence + ScoringConfig.CHROMOSOME_MATCH_BONUS)
+                reasons.append(
+                    MatchReason(
+                        source="ContextClue",
+                        rule="chromosome_match",
+                        confidence=confidence,
+                        details=f"Candidate chromosome '{gene.location.chromosome}' matches context hint '{context.chromosome}'"
+                    )
+                )
+            else:
+                confidence = max(0.1, confidence - ScoringConfig.CHROMOSOME_MISMATCH_PENALTY)
+                reasons.append(
+                    MatchReason(
+                        source="ContextClue",
+                        rule="chromosome_mismatch",
+                        confidence=confidence,
+                        details=f"Candidate chromosome '{gene.location.chromosome}' differs from context hint '{context.chromosome}'"
+                    )
+                )
+
+        # Locus type / biotype disambiguation
+        if context.locus_type and gene.locus_type:
+            if context.locus_type.lower() not in gene.locus_type.lower():
+                confidence = max(0.1, confidence - ScoringConfig.LOCUS_TYPE_MISMATCH_PENALTY)
+                reasons.append(
+                    MatchReason(
+                        source="ContextClue",
+                        rule="locus_type_mismatch",
+                        confidence=confidence,
+                        details=f"Locus type '{gene.locus_type}' does not match hint '{context.locus_type}'"
+                    )
+                )
+
+        return round(confidence, 2)
+
+    async def resolve(
+        self, query: str, taxon_id: int = 9606, context: Optional[ResolutionContext] = None
+    ) -> ResolutionResult:
         query_clean = query.strip()
         reasons: List[MatchReason] = []
 
@@ -45,11 +98,16 @@ class EntityResolver:
                     if uniprot_res and "accession" in uniprot_res:
                         gene.uniprot_ids.append(uniprot_res["accession"])
 
+                # Apply context clues scoring adjustments if hints provided
+                final_confidence = self._apply_context_clues(gene, context, confidence, reasons)
                 match_status = "exact" if rule == "exact_symbol" else "alias"
+                if final_confidence < 0.60:
+                    match_status = "ambiguous"
+
                 return ResolutionResult(
                     query=query_clean,
                     match_status=match_status,
-                    confidence_score=confidence,
+                    confidence_score=final_confidence,
                     resolved_entity=gene,
                     match_reasons=reasons
                 )

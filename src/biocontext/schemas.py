@@ -53,10 +53,19 @@ class MatchReason(BaseModel):
     details: Optional[str] = Field(None, description="Human-readable explanation of the match")
 
 
+class ResolutionContext(BaseModel):
+    """Contextual hints provided by the user or upstream pipelines for disambiguation."""
+    chromosome: Optional[str] = Field(None, description="Chromosome identifier hint (e.g. '17', 'chr17')")
+    start: Optional[int] = Field(None, description="Approximate start coordinate")
+    end: Optional[int] = Field(None, description="Approximate end coordinate")
+    locus_type: Optional[str] = Field(None, description="Expected gene biotype (e.g. 'protein-coding', 'lncRNA')")
+    assembly: str = Field("GRCh38", description="Target genome assembly version")
+
+
 class ResolutionResult(BaseModel):
     """Output of the Entity Resolution Engine."""
     query: str = Field(..., description="Raw input query")
-    match_status: str = Field(..., description="'exact', 'alias', 'fuzzy', or 'unresolved'")
+    match_status: str = Field(..., description="'exact', 'alias', 'fuzzy', 'ambiguous', or 'unresolved'")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall match confidence score")
     
     resolved_entity: Optional[GeneEntity] = Field(None, description="Resolved gene entity if found")

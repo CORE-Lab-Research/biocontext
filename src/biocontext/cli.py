@@ -1,50 +1,42 @@
-"""Command-line interface (CLI) for direct terminal testing and execution."""
+"""Command-line interface (CLI) driven dynamically by CLI_COMMANDS_REGISTRY.
+Allows seamless addition and modification of subcommands from config.py without touching execution plumbing.
+"""
 
 import argparse
 import asyncio
 import json
 import sys
 
+from biocontext.config import CLI_COMMANDS_REGISTRY
 from biocontext.logging import setup_logging
 from biocontext.resolver import EntityResolver
+from biocontext.schemas import ResolutionContext
 from biocontext.server import mcp
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Dynamically construct argument parser from declarative registry in config.py."""
     parser = argparse.ArgumentParser(
         prog="biocontext",
         description="Authoritative Biological Entity Resolution & Contextual Intelligence Framework."
     )
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
-    # Command: server (Default MCP stdio server)
-    subparsers.add_parser("server", help="Run the Model Context Protocol (MCP) stdio server")
+    for cmd in CLI_COMMANDS_REGISTRY:
+        cmd_name = cmd["name"]
+        cmd_help = cmd.get("help", "")
 
-    # Command: resolve (CLI query)
-    resolve_parser = subparsers.add_parser("resolve", help="Resolve a single gene/protein query")
-    resolve_parser.add_argument("query", help="Gene symbol, alias, or identifier (e.g. TP53, HER2, 7157)")
-    resolve_parser.add_argument("--taxon", type=int, default=9606, help="NCBI Taxonomy ID (default: 9606 for human)")
-
-    # Command: batch (CLI batch resolution)
-    batch_parser = subparsers.add_parser("batch", help="Resolve multiple queries in batch")
-    batch_parser.add_argument("queries", nargs="+", help="Space-separated list of symbols or IDs")
-    batch_parser.add_argument("--taxon", type=int, default=9606, help="NCBI Taxonomy ID (default: 9606 for human)")
-
-    # Command: protein (UniProt lookup)
-    protein_parser = subparsers.add_parser("protein", help="Fetch UniProt protein metadata by accession")
-    protein_parser.add_argument("accession", help="UniProt accession ID (e.g. P04637)")
-
-    # Command: cache (Cache management)
-    cache_parser = subparsers.add_parser("cache", help="Manage persistent SQLite cache")
-    cache_sub = cache_parser.add_subparsers(dest="cache_action", help="Cache action")
-    cache_sub.add_parser("stats", help="Show cache entries and statistics")
-    cache_sub.add_parser("clear", help="Purge all cached responses")
-
-    # Command: bench (Run empirical accuracy benchmark)
-    subparsers.add_parser("bench", help="Run empirical 25-case resolution accuracy benchmark")
-
-    # Command: test (Run complete test suite)
-    subparsers.add_parser("test", help="Run complete pytest test suite")
+        if "subcommands" in cmd:
+            sub = subparsers.add_parser(cmd_name, help=cmd_help)
+            nested = sub.add_subparsers(dest=f"{cmd_name}_action", help=f"{cmd_name} action")
+            for subcmd in cmd["subcommands"]:
+                nested.add_parser(subcmd["name"], help=subcmd.get("help", ""))
+        else:
+            sub = subparsers.add_parser(cmd_name, help=cmd_help)
+            for arg in cmd.get("arguments", []):
+                flags = arg["flags"]
+                kwargs = {k: v for k, v in arg.items() if k != "flags"}
+                sub.add_argument(*flags, **kwargs)
 
     return parser
 
@@ -53,7 +45,14 @@ async def run_cli_async(args: argparse.Namespace) -> int:
     resolver = EntityResolver()
 
     if args.command == "resolve":
-        res = await resolver.resolve(args.query, taxon_id=args.taxon)
+        context = None
+        if getattr(args, "chrom", None) or getattr(args, "locus_type", None):
+            context = ResolutionContext(
+                chromosome=getattr(args, "chrom", None),
+                locus_type=getattr(args, "locus_type", None)
+            )
+
+        res = await resolver.resolve(args.query, taxon_id=args.taxon, context=context)
         print(res.model_dump_json(indent=2))
         return 0
 

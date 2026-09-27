@@ -11,17 +11,29 @@ resolver = EntityResolver()
 
 
 @mcp.tool()
-async def resolve_gene(query: str, taxon_id: int = 9606) -> str:
+async def resolve_gene(
+    query: str,
+    taxon_id: int = 9606,
+    chromosome: str | None = None,
+    locus_type: str | None = None
+) -> str:
     """Resolve an ambiguous gene symbol, alias, or accession to an authoritative entity.
 
     Args:
         query: Gene symbol (e.g. TP53), alias (e.g. HER2, p53), or accession.
         taxon_id: NCBI Taxonomy ID (default: 9606 for human).
+        chromosome: Optional chromosome hint for disambiguation (e.g. '17' or 'chr17').
+        locus_type: Optional biotype hint (e.g. 'protein-coding', 'pseudogene').
 
     Returns:
         JSON string containing the resolved canonical gene entity, cross-references, and match audit trail.
     """
-    result: ResolutionResult = await resolver.resolve(query=query, taxon_id=taxon_id)
+    from biocontext.schemas import ResolutionContext
+    context = None
+    if chromosome or locus_type:
+        context = ResolutionContext(chromosome=chromosome, locus_type=locus_type)
+
+    result: ResolutionResult = await resolver.resolve(query=query, taxon_id=taxon_id, context=context)
     return result.model_dump_json(indent=2)
 
 

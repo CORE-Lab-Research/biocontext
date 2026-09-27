@@ -170,6 +170,10 @@ BioContext includes a built-in CLI for direct terminal testing without needing a
 biocontext resolve TP53
 biocontext resolve HER2
 
+# Resolve with contextual hint for disambiguation (e.g. chromosome, locus type)
+biocontext resolve TP53 --chrom 17
+biocontext resolve TP53 --locus-type protein-coding
+
 # Query cross-species (e.g. Mus musculus - taxon 10090)
 biocontext resolve Trp53 --taxon 10090
 
@@ -194,7 +198,7 @@ biocontext test
 
 | Tool | Parameters | Description |
 | :--- | :--- | :--- |
-| `resolve_gene` | `query: str`, `taxon_id: int = 9606` | Resolves official symbols (`TP53`), aliases (`HER2`), or Entrez IDs (`7157`) to a canonical `GeneEntity` with audit reasons. |
+| `resolve_gene` | `query: str`, `taxon_id: int = 9606`, `chromosome: str = None`, `locus_type: str = None` | Resolves official symbols (`TP53`), aliases (`HER2`), or Entrez IDs (`7157`) to a canonical `GeneEntity` with contextual scoring adjustments. |
 | `batch_resolve_genes` | `queries: list[str]`, `taxon_id: int = 9606` | Concurrently resolves multiple gene identifiers or aliases. |
 | `get_protein_info` | `accession: str` | Retrieves structured protein metadata from UniProtKB by primary accession (e.g. `P04637`). |
 

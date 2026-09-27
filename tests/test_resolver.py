@@ -64,3 +64,27 @@ async def test_unresolved_query(resolver):
     assert result.match_status == "unresolved"
     assert result.confidence_score == 0.0
     assert result.resolved_entity is None
+
+
+@pytest.mark.asyncio
+async def test_disambiguation_with_matching_chromosome(resolver):
+    from biocontext.schemas import ResolutionContext
+    # TP53 is on chromosome 17
+    ctx = ResolutionContext(chromosome="17")
+    result = await resolver.resolve("TP53", context=ctx)
+    assert result.match_status == "exact"
+    assert result.confidence_score == 1.0
+    rules = [r.rule for r in result.match_reasons]
+    assert "chromosome_match" in rules
+
+
+@pytest.mark.asyncio
+async def test_disambiguation_with_mismatching_chromosome(resolver):
+    from biocontext.schemas import ResolutionContext
+    # TP53 is on chr17, but context asserts chromosome 2 (penalty applied)
+    ctx = ResolutionContext(chromosome="2")
+    result = await resolver.resolve("TP53", context=ctx)
+    # 1.0 - 0.40 penalty = 0.60
+    assert result.confidence_score == 0.60
+    rules = [r.rule for r in result.match_reasons]
+    assert "chromosome_mismatch" in rules
