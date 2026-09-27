@@ -2,7 +2,14 @@
 
 import json
 import pytest
-from biocontext.server import batch_resolve_genes, find_orthologs, get_protein_info, get_transcripts, resolve_gene
+from biocontext.server import (
+    batch_resolve_genes,
+    find_orthologs,
+    get_mouse_gene,
+    get_protein_info,
+    get_transcripts,
+    resolve_gene,
+)
 
 
 @pytest.mark.asyncio
@@ -49,3 +56,10 @@ async def test_mcp_tool_find_orthologs():
     assert res[0]["target_species"] == "mus_musculus"
 
 
+@pytest.mark.asyncio
+async def test_mcp_tool_get_mouse_gene():
+    res_str = await get_mouse_gene("MGI:98834")
+    res = json.loads(res_str)
+    assert res["symbol"] == "Trp53"
+    assert res["taxon_id"] == 10090
+    assert res["mgi_id"] == "MGI:98834"

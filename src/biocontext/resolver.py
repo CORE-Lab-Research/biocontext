@@ -1,7 +1,7 @@
 """Entity Resolution Engine resolving queries across biological authorities."""
 
 from typing import List, Optional
-from biocontext.adapters import EnsemblAdapter, HGNCAdapter, NCBIAdapter, UniProtAdapter
+from biocontext.adapters import EnsemblAdapter, HGNCAdapter, MGIAdapter, NCBIAdapter, UniProtAdapter
 from biocontext.base import SQLiteCache
 from biocontext.config import ScoringConfig
 from biocontext.logging import get_logger
@@ -25,6 +25,7 @@ class EntityResolver:
         self.ncbi = NCBIAdapter(cache=self.cache, api_key=ncbi_api_key, email=email, tool=tool)
         self.uniprot = UniProtAdapter(cache=self.cache, email=email)
         self.ensembl = EnsemblAdapter(cache=self.cache, email=email)
+        self.mgi = MGIAdapter(cache=self.cache, email=email)
 
 
 
@@ -121,7 +122,28 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
-        # 2. Check Ensembl Gene ID (e.g. ENSG... or ENSMUSG...)
+        # 2. Check direct MGI ID (e.g. MGI:98834 or MGI:xxxx)
+        if query_clean.upper().startswith("MGI:"):
+            mgi_gene = await self.mgi.fetch_by_mgi_id(query_clean)
+            if mgi_gene:
+                reasons.append(
+                    MatchReason(
+                        source="MGI",
+                        rule="mgi_id_lookup",
+                        confidence=1.0,
+                        details=f"Direct MGI ID lookup matched '{query_clean}' to mouse symbol '{mgi_gene.symbol}'"
+                    )
+                )
+                final_confidence = self._apply_context_clues(mgi_gene, context, 1.0, reasons)
+                return ResolutionResult(
+                    query=query_clean,
+                    match_status="exact",
+                    confidence_score=final_confidence,
+                    resolved_entity=mgi_gene,
+                    match_reasons=reasons
+                )
+
+        # 3. Check Ensembl Gene ID (e.g. ENSG... or ENSMUSG...)
         if query_clean.upper().startswith("ENS"):
             ens_gene = await self.ensembl.fetch_by_id(query_clean)
             if ens_gene:
@@ -133,6 +155,12 @@ class EntityResolver:
                         details=f"Direct Ensembl Gene ID lookup matched '{query_clean}' to symbol '{ens_gene.symbol}'"
                     )
                 )
+                # If mouse Ensembl gene, fetch MGI ID xref
+                if ens_gene.taxon_id == 10090 and ens_gene.ensembl_gene_id:
+                    mgi_id = await self.ensembl.fetch_mgi_id(ens_gene.ensembl_gene_id)
+                    if mgi_id:
+                        ens_gene.mgi_id = mgi_id
+
                 final_confidence = self._apply_context_clues(ens_gene, context, 1.0, reasons)
                 return ResolutionResult(
                     query=query_clean,
@@ -142,7 +170,7 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
-        # 3. If query is numeric (Entrez ID) and human (9606), check HGNC first (authoritative and no strict 3 req/s throttle)
+        # 4. If query is numeric (Entrez ID) and human (9606), check HGNC first (authoritative and no strict 3 req/s throttle)
         if query_clean.isdigit() and taxon_id == 9606:
             hgnc_entrez_gene = await self.hgnc.fetch_by_entrez_id(query_clean)
             if hgnc_entrez_gene:
@@ -163,8 +191,7 @@ class EntityResolver:
                     match_reasons=reasons
                 )
 
-        # 4. Check Entrez Gene ID lookup or cross-species / fallback via NCBI
-
+        # 5. Check Entrez Gene ID lookup or cross-species / fallback via NCBI
         ncbi_res = await self.ncbi.resolve_gene(query_clean, taxon_id=taxon_id)
         if ncbi_res:
             ncbi_gene = ncbi_res["entity"]
@@ -192,6 +219,18 @@ class EntityResolver:
                         resolved_entity=hgnc_gene,
                         match_reasons=reasons
                     )
+
+            # If mouse (10090), check Ensembl to enrich MGI ID and transcripts
+            if taxon_id == 10090 and ncbi_gene.symbol:
+                ens_mouse = await self.ensembl.fetch_by_symbol(species="mus_musculus", symbol=ncbi_gene.symbol)
+                if ens_mouse:
+                    if ens_mouse.ensembl_gene_id:
+                        ncbi_gene.ensembl_gene_id = ens_mouse.ensembl_gene_id
+                        mgi_id = await self.ensembl.fetch_mgi_id(ens_mouse.ensembl_gene_id)
+                        if mgi_id:
+                            ncbi_gene.mgi_id = mgi_id
+                    if ens_mouse.transcripts:
+                        ncbi_gene.transcripts = ens_mouse.transcripts
 
             return ResolutionResult(
                 query=query_clean,

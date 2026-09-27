@@ -726,6 +726,153 @@ class EnsemblAdapter(BaseBioAdapter):
         self.cache.set("ensembl", cache_key, {"items": [o.model_dump() for o in orthologs]})
         return orthologs
 
+    async def fetch_mgi_id(self, ensembl_gene_id: str) -> Optional[str]:
+        """Fetch MGI ID for a mouse Ensembl gene via Ensembl xrefs."""
+        gene_id = ensembl_gene_id.strip().upper()
+        cache_key = f"xref:mgi:{gene_id}"
+        cached = self.cache.get("ensembl", cache_key)
+        if cached and "mgi_id" in cached:
+            return cached["mgi_id"]
+
+        url = f"{self.BASE_URL}/xrefs/id/{gene_id}"
+        params = {"external_db": "MGI"}
+
+        await self.rate_limiter.acquire()
+        async with httpx.AsyncClient(timeout=RateLimitConfig.ENSEMBL_TIMEOUT_SEC) as client:
+            try:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    for item in data:
+                        prim_id = item.get("primary_id")
+                        if prim_id and "MGI:" in prim_id:
+                            self.cache.set("ensembl", cache_key, {"mgi_id": prim_id})
+                            return prim_id
+            except Exception as e:
+                logger.warning(f"Ensembl MGI xref lookup failed | id={gene_id} error={e}")
+
+        return None
+
+
+class MGIAdapter(BaseBioAdapter):
+    """Adapter for Mouse Genome Informatics (MGI) model organism data.
+    Authoritative resource for laboratory mouse genetics, markers, and nomenclature.
+    Integrates via Alliance of Genome Resources (AGR) API and Ensembl / UniProt cross-references.
+    """
+
+    ALLIANCE_API_URL = "https://www.alliancegenome.org/api/gene"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="MGI", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.MGI_RPS)
+
+    async def fetch_by_mgi_id(self, mgi_id: str) -> Optional[GeneEntity]:
+        """Fetch mouse gene details by primary MGI ID (e.g. 'MGI:98834')."""
+        clean_id = mgi_id.strip()
+        if not clean_id.upper().startswith("MGI:"):
+            clean_id = f"MGI:{clean_id}"
+
+        cache_key = f"mgi:{clean_id.upper()}"
+        cached = self.cache.get("mgi", cache_key)
+        if cached:
+            return GeneEntity(**cached)
+
+        url = f"{self.ALLIANCE_API_URL}/{clean_id}"
+        data = None
+        for attempt in range(3):
+            await self.rate_limiter.acquire()
+            async with httpx.AsyncClient(timeout=RateLimitConfig.MGI_TIMEOUT_SEC) as client:
+                try:
+                    resp = await client.get(url, headers=self.headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    elif resp.status_code in (404, 400):
+                        return None
+                    elif resp.status_code == 429:
+                        import asyncio
+                        await asyncio.sleep(1.0)
+                except Exception as e:
+                    logger.warning(f"MGI AGR lookup attempt {attempt + 1} failed | id={clean_id} error={e}")
+                    if attempt == 2:
+                        return None
+                    import asyncio
+                    await asyncio.sleep(0.5 * (attempt + 1))
+        else:
+            return None
+
+        gene_obj = data.get("gene", {})
+        if not gene_obj:
+            return None
+
+        # Symbol & Name
+        symbol = gene_obj.get("geneSymbol", {}).get("displayText") or clean_id
+        full_name = gene_obj.get("geneFullName", {}).get("displayText")
+
+        # Synonyms
+        synonyms: List[str] = []
+        for syn_item in gene_obj.get("geneSynonyms", []):
+            syn_txt = syn_item.get("displayText")
+            if syn_txt and syn_txt not in synonyms:
+                synonyms.append(syn_txt)
+
+        # Cross-references
+        uniprot_ids: List[str] = []
+        ncbi_gene_id = None
+        for xref in gene_obj.get("crossReferences", []):
+            ref_name = xref.get("name") or xref.get("displayName") or ""
+            if ref_name.startswith("UniProtKB:"):
+                acc = ref_name.replace("UniProtKB:", "").strip()
+                if acc and acc not in uniprot_ids:
+                    uniprot_ids.append(acc)
+            elif ref_name.startswith("NCBI_Gene:") or ref_name.startswith("GeneID:"):
+                ncbi_gene_id = ref_name.split(":")[-1].strip()
+
+        # Genomic location
+        location = None
+        loc_assocs = gene_obj.get("geneGenomicLocationAssociations", [])
+        if loc_assocs:
+            first_loc = loc_assocs[0]
+            start = first_loc.get("start")
+            end = first_loc.get("end")
+            strand = first_loc.get("strand")
+            chr_name = first_loc.get("geneGenomicLocationAssociationObject", {}).get("name", "")
+            location = GenomicLocation(
+                chromosome=str(chr_name) if chr_name else "unknown",
+                start=start,
+                end=end,
+                strand=strand,
+                assembly="GRCm39"
+            )
+
+        gene_entity = GeneEntity(
+            symbol=symbol,
+            name=full_name,
+            taxon_id=10090,
+            species="Mus musculus",
+            mgi_id=clean_id,
+            ncbi_gene_id=ncbi_gene_id,
+            uniprot_ids=uniprot_ids,
+            synonyms=synonyms,
+            location=location
+        )
+
+        self.cache.set("mgi", cache_key, gene_entity.model_dump())
+        return gene_entity
+
+    async def resolve_gene(self, query: str, taxon_id: int = 10090) -> Optional[Dict[str, Any]]:
+        """Resolve a mouse gene query via MGI ID."""
+        clean_q = query.strip()
+        if clean_q.upper().startswith("MGI:"):
+            gene = await self.fetch_by_mgi_id(clean_q)
+            if gene:
+                return {"entity": gene, "rule": "mgi_id_lookup", "confidence": 1.0}
+
+        return None
+
+
 
 
 
