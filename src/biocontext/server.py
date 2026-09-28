@@ -139,6 +139,52 @@ async def get_mouse_gene(query: str) -> str:
     return '{"status": "not_found", "query": "%s", "taxon_id": 10090}' % clean_q
 
 
+@mcp.tool()
+async def annotate_function(
+    query: str,
+    taxon_id: int = 9606,
+    aspect: str | None = None,
+    limit: int = 25
+) -> str:
+    """Fetch Gene Ontology functional annotations (MF, BP, CC) for a gene or protein.
+
+    Args:
+        query: Gene symbol (e.g. 'TP53'), alias, or UniProt accession (e.g. 'P04637').
+        taxon_id: NCBI Taxonomy ID (default: 9606 for human).
+        aspect: Optional filter: 'molecular_function', 'biological_process', or 'cellular_component'.
+        limit: Maximum number of annotations per aspect (default: 25).
+
+    Returns:
+        JSON string containing the functional profile structured into MF, BP, and CC with evidence codes.
+    """
+    profile = await resolver.annotate_gene(
+        query=query,
+        taxon_id=taxon_id,
+        max_terms_per_aspect=limit,
+        target_aspect=aspect
+    )
+    if not profile:
+        return '{"status": "not_found", "query": "%s", "taxon_id": %d}' % (query, taxon_id)
+
+    return profile.model_dump_json(indent=2)
+
+
+@mcp.tool()
+async def get_go_term(go_id: str) -> str:
+    """Fetch metadata and functional definition for a Gene Ontology (GO) term ID.
+
+    Args:
+        go_id: Gene Ontology identifier (e.g. 'GO:0006915').
+
+    Returns:
+        JSON string containing term name, definition, aspect, and synonyms.
+    """
+    term = await resolver.go.fetch_term(go_id)
+    if not term:
+        return '{"status": "not_found", "go_id": "%s"}' % go_id
+
+    import json
+    return json.dumps(term, indent=2)
 
 
 def main():

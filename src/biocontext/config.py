@@ -34,6 +34,8 @@ class RateLimitConfig:
     ENSEMBL_TIMEOUT_SEC: float = 15.0
     MGI_RPS: float = 5.0
     MGI_TIMEOUT_SEC: float = 15.0
+    QUICKGO_RPS: float = 10.0
+    QUICKGO_TIMEOUT_SEC: float = 15.0
 
 
 
@@ -116,6 +118,23 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
         "help": "Resolve mouse gene details and MGI identifiers (Mus musculus)",
         "arguments": [
             {"flags": ["query"], "help": "Mouse gene symbol (e.g. Trp53) or MGI identifier (e.g. MGI:98834)"}
+        ]
+    },
+    {
+        "name": "annotate",
+        "help": "Fetch Gene Ontology functional annotations (MF, BP, CC) for a gene",
+        "arguments": [
+            {"flags": ["query"], "help": "Gene symbol or identifier (e.g. TP53, BRCA1)"},
+            {"flags": ["--taxon"], "type": int, "default": 9606, "help": "NCBI Taxonomy ID (default: 9606 for human)"},
+            {"flags": ["--aspect"], "type": str, "default": None, "help": "Filter by aspect (molecular_function, biological_process, cellular_component)"},
+            {"flags": ["--limit"], "type": int, "default": 25, "help": "Max annotations per aspect (default: 25)"}
+        ]
+    },
+    {
+        "name": "go",
+        "help": "Fetch Gene Ontology term definition and metadata by GO ID",
+        "arguments": [
+            {"flags": ["go_id"], "help": "Gene Ontology identifier (e.g. GO:0006915)"}
         ]
     },
 

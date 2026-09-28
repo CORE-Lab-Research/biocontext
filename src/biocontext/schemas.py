@@ -107,3 +107,25 @@ class ResolutionResult(BaseModel):
     resolved_entity: Optional[GeneEntity] = Field(None, description="Resolved gene entity if found")
     alternative_matches: List[GeneEntity] = Field(default_factory=list, description="Other plausible candidate matches")
     match_reasons: List[MatchReason] = Field(default_factory=list, description="Audit trail of resolution logic")
+
+
+class GOAnnotation(BaseModel):
+    """Single Gene Ontology annotation associating an entity with a GO term."""
+    go_id: str = Field(..., description="Gene Ontology identifier (e.g. 'GO:0006915')")
+    name: Optional[str] = Field(None, description="Human-readable term name (e.g. 'apoptotic process')")
+    aspect: str = Field(..., description="Ontology aspect: 'molecular_function', 'biological_process', or 'cellular_component'")
+    evidence_code: Optional[str] = Field(None, description="GO evidence code abbreviation (e.g. 'IDA', 'IMP', 'IEA')")
+    eco_id: Optional[str] = Field(None, description="Evidence and Conclusion Ontology identifier (e.g. 'ECO:0000314')")
+    assigned_by: Optional[str] = Field(None, description="Authoritative database attributing the annotation (e.g. 'UniProt', 'Ensembl')")
+    definition: Optional[str] = Field(None, description="Detailed functional definition of the GO term")
+
+
+class FunctionalAnnotation(BaseModel):
+    """Aggregated functional ontology profile for a biological entity."""
+    query: str = Field(..., description="Original input query or gene symbol")
+    taxon_id: int = Field(9606, description="NCBI Taxonomy ID")
+    uniprot_accession: Optional[str] = Field(None, description="Primary UniProt accession used for annotation lookup")
+    molecular_functions: List[GOAnnotation] = Field(default_factory=list, description="Molecular Function (MF) annotations")
+    biological_processes: List[GOAnnotation] = Field(default_factory=list, description="Biological Process (BP) annotations")
+    cellular_components: List[GOAnnotation] = Field(default_factory=list, description="Cellular Component (CC) annotations")
+    total_annotations: int = Field(0, description="Total count of annotations retrieved")

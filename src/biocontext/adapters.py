@@ -11,6 +11,8 @@ from biocontext.config import ClientConfig, RateLimitConfig
 from biocontext.logging import get_logger
 from biocontext.schemas import (
     ExonEntity,
+    FunctionalAnnotation,
+    GOAnnotation,
     GeneEntity,
     GenomicLocation,
     OrthologEntity,
@@ -871,6 +873,170 @@ class MGIAdapter(BaseBioAdapter):
                 return {"entity": gene, "rule": "mgi_id_lookup", "confidence": 1.0}
 
         return None
+
+
+class GeneOntologyAdapter(BaseBioAdapter):
+    """Adapter for EMBL-EBI QuickGO REST API.
+    Authoritative resource for Gene Ontology (GO) terms and functional annotations.
+    """
+
+    BASE_URL = "https://www.ebi.ac.uk/QuickGO/services"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="GeneOntology", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.QUICKGO_RPS)
+
+    async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
+        """QuickGO does not resolve gene symbols directly; delegating to primary resolver."""
+        return None
+
+    async def fetch_term(self, go_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch metadata, name, definition, and aspect for a specific GO ID."""
+        clean_id = go_id.strip().upper()
+        if not clean_id.startswith("GO:"):
+            clean_id = f"GO:{clean_id}"
+
+        cache_key = f"term:{clean_id}"
+        cached = self.cache.get("go", cache_key)
+        if cached:
+            return cached
+
+        url = f"{self.BASE_URL}/ontology/go/terms/{clean_id}"
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.QUICKGO_TIMEOUT_SEC) as client:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("QuickGO term fetch failed | id=%s status=%d", clean_id, resp.status_code)
+                    return None
+                data = resp.json()
+        except Exception as e:
+            logger.error("QuickGO term fetch exception | id=%s error=%s", clean_id, str(e))
+            return None
+
+        results = data.get("results", [])
+        if not results:
+            return None
+
+        item = results[0]
+        term_data = {
+            "go_id": item.get("id"),
+            "name": item.get("name"),
+            "aspect": item.get("aspect"),
+            "is_obsolete": item.get("isObsolete", False),
+            "definition": item.get("definition", {}).get("text") if isinstance(item.get("definition"), dict) else None,
+            "synonyms": [s.get("name") for s in item.get("synonyms", []) if isinstance(s, dict) and s.get("name")]
+        }
+
+        self.cache.set("go", cache_key, term_data)
+        return term_data
+
+    async def fetch_annotations(
+        self,
+        gene_product_id: str,
+        taxon_id: int = 9606,
+        aspect: Optional[str] = None,
+        limit: int = 50
+    ) -> List[GOAnnotation]:
+        """Fetch GO annotations associated with a UniProt accession or gene product ID."""
+        clean_id = gene_product_id.strip()
+        # Ensure ID format for QuickGO (e.g. UniProtKB:P04637 or just P04637)
+        if clean_id.upper().startswith("UNIPROTKB:"):
+            clean_id = clean_id.split(":", 1)[1]
+
+        cache_key = f"annot:{clean_id}:tax{taxon_id}:asp{aspect}:lim{limit}"
+        cached = self.cache.get("go", cache_key)
+        if cached and isinstance(cached, list):
+            return [GOAnnotation(**item) for item in cached if isinstance(item, dict)]
+
+        params: Dict[str, Any] = {
+            "geneProductId": clean_id,
+            "limit": min(limit, 100),
+        }
+        if taxon_id:
+            params["taxonId"] = taxon_id
+        if aspect:
+            params["aspect"] = aspect
+
+        url = f"{self.BASE_URL}/annotation/search"
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.QUICKGO_TIMEOUT_SEC) as client:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("QuickGO annotation search failed | gene_product=%s status=%d", clean_id, resp.status_code)
+                    return []
+                data = resp.json()
+        except Exception as e:
+            logger.error("QuickGO annotation search exception | gene_product=%s error=%s", clean_id, str(e))
+            return []
+
+        annotations: List[GOAnnotation] = []
+        raw_results = data.get("results", [])
+
+        # Deduplicate annotations by (go_id, aspect, evidence_code)
+        seen_keys = set()
+        for res in raw_results:
+            go_id = res.get("goId")
+            if not go_id:
+                continue
+
+            go_aspect = res.get("goAspect") or aspect or "unknown"
+            go_name = res.get("goName")
+            go_evidence = res.get("goEvidence")
+            eco_id = res.get("evidenceCode")
+            assigned_by = res.get("assignedBy")
+
+            dedup_key = (go_id, go_aspect, go_evidence)
+            if dedup_key in seen_keys:
+                continue
+            seen_keys.add(dedup_key)
+
+            annotations.append(
+                GOAnnotation(
+                    go_id=go_id,
+                    name=go_name,
+                    aspect=go_aspect,
+                    evidence_code=go_evidence,
+                    eco_id=eco_id,
+                    assigned_by=assigned_by,
+                    definition=None
+                )
+            )
+
+        # Batch resolve term names if missing from annotation payload
+        missing_names_ids = list({a.go_id for a in annotations if not a.name})
+        if missing_names_ids:
+            try:
+                # Query in batches of up to 50 terms
+                term_names_map: Dict[str, str] = {}
+                chunk_size = 50
+                for i in range(0, len(missing_names_ids), chunk_size):
+                    chunk = missing_names_ids[i:i + chunk_size]
+                    joined_ids = ",".join(chunk)
+                    terms_url = f"{self.BASE_URL}/ontology/go/terms/{joined_ids}"
+                    await self.rate_limiter.acquire()
+                    async with httpx.AsyncClient(timeout=RateLimitConfig.QUICKGO_TIMEOUT_SEC) as client:
+                        terms_resp = await client.get(terms_url, headers=self.headers)
+                        if terms_resp.status_code == 200:
+                            t_data = terms_resp.json()
+                            for t_item in t_data.get("results", []):
+                                tid = t_item.get("id")
+                                tname = t_item.get("name")
+                                if tid and tname:
+                                    term_names_map[tid] = tname
+
+                for a in annotations:
+                    if not a.name and a.go_id in term_names_map:
+                        a.name = term_names_map[a.go_id]
+            except Exception as e:
+                logger.debug("QuickGO term name batch enrichment skipped | error=%s", str(e))
+
+        # Cache results as list of dicts
+        self.cache.set("go", cache_key, [a.model_dump() for a in annotations])
+        return annotations
 
 
 

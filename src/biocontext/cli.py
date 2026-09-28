@@ -106,6 +106,27 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(json.dumps({"status": "not_found", "query": clean_q, "taxon_id": 10090}, indent=2))
         return 1
 
+    elif args.command == "annotate":
+        profile = await resolver.annotate_gene(
+            query=args.query,
+            taxon_id=args.taxon,
+            max_terms_per_aspect=args.limit,
+            target_aspect=args.aspect
+        )
+        if not profile:
+            print(json.dumps({"status": "not_found", "query": args.query, "taxon_id": args.taxon}, indent=2))
+            return 1
+        print(profile.model_dump_json(indent=2))
+        return 0
+
+    elif args.command == "go":
+        term = await resolver.go.fetch_term(args.go_id)
+        if not term:
+            print(json.dumps({"status": "not_found", "go_id": args.go_id}, indent=2))
+            return 1
+        print(json.dumps(term, indent=2))
+        return 0
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -138,7 +159,7 @@ def main():
     elif args.command == "test":
         import pytest
         sys.exit(pytest.main(["tests/", "-v"]))
-    elif args.command in ("resolve", "batch", "protein", "transcripts", "ortholog", "mouse", "cache"):
+    elif args.command in ("resolve", "batch", "protein", "transcripts", "ortholog", "mouse", "annotate", "go", "cache"):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
         parser.print_help()
