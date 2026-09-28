@@ -1,0 +1,18 @@
+services:
+  biocontext:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: biocontext:latest
+    container_name: biocontext-server
+    restart: unless-stopped
+    volumes:
+      - biocontext_data:/data
+    environment:
+      - BIOCONTEXT_CACHE_PATH=/data/biocontext_cache.db
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+
+volumes:
+  biocontext_data:

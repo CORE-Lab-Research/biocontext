@@ -28,5 +28,19 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run test suite
-        run: uv run pytest tests/test_resolver.py tests/test_server.py -v
+      - name: Run full test suite
+        run: uv run pytest tests/ -v
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Verify package build
+        run: uv build
