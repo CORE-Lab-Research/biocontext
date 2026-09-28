@@ -18,8 +18,10 @@ The BioContext project takes security vulnerabilities seriously. We appreciate y
 If you discover a security vulnerability or potential exploit in BioContext (such as input validation flaws, arbitrary file write via cache, dependency vulnerabilities, or unauthorized information leakage through MCP stdio/SSE channels):
 
 1. **DO NOT** create a public GitHub issue.
-2. Email your report directly to the security maintainers:
-   - **Primary Contact**: `engkinandatama@outlook.com`
+2. Use GitHub's built-in **Private Vulnerability Reporting**:
+   - Navigate to the repository's [Security Tab](https://github.com/CORE-Lab-Research/biocontext/security).
+   - Click on **Advisories** and select **"Report a vulnerability"**.
+   - This opens a confidential, private advisory thread accessible only to the project maintainers and the reporter.
 3. Please include:
    - A clear description of the vulnerability.
    - Minimal reproducible steps or proof-of-concept (PoC).
