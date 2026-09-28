@@ -1,11 +1,22 @@
-"""Entity Resolution Engine resolving queries across biological authorities."""
-
 from typing import List, Optional
-from biocontext.adapters import EnsemblAdapter, HGNCAdapter, MGIAdapter, NCBIAdapter, UniProtAdapter
+from biocontext.adapters import (
+    EnsemblAdapter,
+    GeneOntologyAdapter,
+    HGNCAdapter,
+    MGIAdapter,
+    NCBIAdapter,
+    UniProtAdapter,
+)
 from biocontext.base import SQLiteCache
 from biocontext.config import ScoringConfig
 from biocontext.logging import get_logger
-from biocontext.schemas import MatchReason, ResolutionContext, ResolutionResult
+from biocontext.schemas import (
+    FunctionalAnnotation,
+    GOAnnotation,
+    MatchReason,
+    ResolutionContext,
+    ResolutionResult,
+)
 
 logger = get_logger("resolver")
 
@@ -26,6 +37,7 @@ class EntityResolver:
         self.uniprot = UniProtAdapter(cache=self.cache, email=email)
         self.ensembl = EnsemblAdapter(cache=self.cache, email=email)
         self.mgi = MGIAdapter(cache=self.cache, email=email)
+        self.go = GeneOntologyAdapter(cache=self.cache, email=email)
 
 
 
@@ -304,5 +316,82 @@ class EntityResolver:
                     details=f"No matching authoritative entity found for query '{query_clean}'"
                 )
             ]
+        )
+
+    async def annotate_gene(
+        self,
+        query: str,
+        taxon_id: int = 9606,
+        max_terms_per_aspect: int = 25,
+        target_aspect: Optional[str] = None
+    ) -> Optional[FunctionalAnnotation]:
+        """Fetch functional annotations (GO terms) for a gene query across MF, BP, and CC.
+
+        Resolves the gene to an authoritative UniProt accession first, then queries QuickGO.
+        """
+        clean_q = query.strip()
+        uniprot_acc: Optional[str] = None
+
+        # 1. If query is already a UniProt accession (e.g. P04637)
+        if len(clean_q) in (6, 10) and (clean_q[0].isalpha() and clean_q[-1].isalnum()):
+            protein = await self.uniprot.fetch_by_accession(clean_q)
+            if protein:
+                uniprot_acc = protein.accession
+
+        # 2. If not an accession, resolve via EntityResolver
+        if not uniprot_acc:
+            res = await self.resolve(clean_q, taxon_id=taxon_id)
+            if res and res.resolved_entity:
+                entity = res.resolved_entity
+                if entity.uniprot_ids:
+                    uniprot_acc = entity.uniprot_ids[0]
+
+        # 3. Fallback: try UniProt adapter resolution directly
+        if not uniprot_acc:
+            u_res = await self.uniprot.resolve_gene(clean_q, taxon_id=taxon_id)
+            if u_res and "entity" in u_res:
+                ent = u_res["entity"]
+                if hasattr(ent, "uniprot_ids") and ent.uniprot_ids:
+                    uniprot_acc = ent.uniprot_ids[0]
+
+        if not uniprot_acc:
+            logger.warning("Could not map gene query '%s' to a UniProt accession for GO annotations", clean_q)
+            return None
+
+        # Fetch annotations from QuickGO
+        aspects_to_fetch = [target_aspect] if target_aspect else ["molecular_function", "biological_process", "cellular_component"]
+        all_annots: List[GOAnnotation] = []
+
+        for asp in aspects_to_fetch:
+            annots = await self.go.fetch_annotations(
+                gene_product_id=uniprot_acc,
+                taxon_id=taxon_id,
+                aspect=asp,
+                limit=max_terms_per_aspect
+            )
+            all_annots.extend(annots)
+
+        # Categorize by aspect
+        mf_list: List[GOAnnotation] = []
+        bp_list: List[GOAnnotation] = []
+        cc_list: List[GOAnnotation] = []
+
+        for a in all_annots:
+            aspect_norm = a.aspect.lower()
+            if "molecular_function" in aspect_norm or aspect_norm == "mf":
+                mf_list.append(a)
+            elif "biological_process" in aspect_norm or aspect_norm == "bp":
+                bp_list.append(a)
+            elif "cellular_component" in aspect_norm or aspect_norm == "cc":
+                cc_list.append(a)
+
+        return FunctionalAnnotation(
+            query=clean_q,
+            taxon_id=taxon_id,
+            uniprot_accession=uniprot_acc,
+            molecular_functions=mf_list[:max_terms_per_aspect],
+            biological_processes=bp_list[:max_terms_per_aspect],
+            cellular_components=cc_list[:max_terms_per_aspect],
+            total_annotations=len(mf_list) + len(bp_list) + len(cc_list)
         )
 
