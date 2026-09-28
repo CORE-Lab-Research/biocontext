@@ -209,7 +209,7 @@ If you use BioContext in your scientific research or software workflows, please 
   title = {BioContext: Authoritative Biological Entity Resolution & Contextual Intelligence Framework},
   year = {2026},
   url = {https://github.com/CORE-Lab-Research/biocontext},
-  version = {0.1.0}
+  version = {0.5.0}
 }
 ```
 

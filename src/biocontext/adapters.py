@@ -198,7 +198,10 @@ class HGNCAdapter(BaseBioAdapter):
 
         primary_symbol = docs[0].get("symbol")
         if primary_symbol:
-            return await self.fetch_by_symbol(primary_symbol)
+            resolved_gene = await self.fetch_by_symbol(primary_symbol)
+            if resolved_gene:
+                self.cache.set("hgnc", cache_key, resolved_gene.model_dump())
+            return resolved_gene
         return None
 
     async def search_fuzzy(self, query: str, max_distance: int = 2) -> List[GeneEntity]:
