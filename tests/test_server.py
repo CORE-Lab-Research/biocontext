@@ -32,8 +32,9 @@ async def test_mcp_tool_get_protein():
 async def test_mcp_tool_batch_resolve():
     res_str = await batch_resolve_genes(["TP53", "HER2"])
     res = json.loads(res_str)
-    assert len(res) == 2
-    symbols = [item["resolved_entity"]["symbol"] for item in res if item["resolved_entity"]]
+    assert res["total_queries"] == 2
+    assert res["resolved_count"] == 2
+    symbols = [item["resolved_entity"]["symbol"] for item in res["results"] if item.get("resolved_entity")]
     assert "TP53" in symbols
     assert "ERBB2" in symbols
 

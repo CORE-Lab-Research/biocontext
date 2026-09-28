@@ -149,3 +149,13 @@ class PathwayContext(BaseModel):
     source: str = Field("Reactome", description="Authoritative pathway knowledge base")
     pathways: List[PathwayEntity] = Field(default_factory=list, description="List of associated biological pathways")
     total_pathways: int = Field(0, description="Total count of pathways retrieved")
+
+
+class BatchResolutionSummary(BaseModel):
+    """Aggregate summary statistics and results of a batch entity resolution run."""
+    total_queries: int = Field(..., description="Total number of input queries submitted")
+    resolved_count: int = Field(..., description="Number of queries successfully resolved (exact, alias, fuzzy)")
+    unresolved_count: int = Field(..., description="Number of queries unmapped or unresolved")
+    success_rate: float = Field(..., ge=0.0, le=1.0, description="Proportion of successfully resolved queries")
+    execution_time_seconds: float = Field(..., description="Elapsed wall-clock processing time")
+    results: List[ResolutionResult] = Field(default_factory=list, description="List of resolution results for each query")

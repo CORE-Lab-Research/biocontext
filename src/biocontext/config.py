@@ -85,10 +85,13 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
     },
     {
         "name": "batch",
-        "help": "Resolve multiple gene queries concurrently in batch",
+        "help": "Resolve multiple gene queries concurrently in batch from arguments or input file (CSV/TXT)",
         "arguments": [
-            {"flags": ["queries"], "nargs": "+", "help": "Space-separated list of symbols or IDs"},
+            {"flags": ["queries"], "nargs": "*", "default": [], "help": "Space-separated list of symbols or IDs"},
+            {"flags": ["--file", "-f"], "type": str, "default": None, "help": "Path to input file containing genes (CSV, TSV, or TXT one per line)"},
+            {"flags": ["--output", "-o"], "type": str, "default": None, "help": "Path to output file (JSON or CSV)"},
             {"flags": ["--taxon"], "type": int, "default": 9606, "help": "NCBI Taxonomy ID (default: 9606 for human)"},
+            {"flags": ["--concurrency", "-c"], "type": int, "default": 10, "help": "Max concurrent resolution tasks (default: 10)"}
         ]
     },
     {
