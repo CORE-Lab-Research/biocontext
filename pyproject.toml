@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
 readme = "README.md"
 authors = [
-    { name = "CORE-Lab-Research" }
+    { name = "Engki Nandatama" }
 ]
 license = { text = "Apache-2.0" }
 keywords = [
