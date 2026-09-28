@@ -69,16 +69,16 @@ Designed natively for AI coding agents and biological research workflows via the
 
 ## Installation & Setup
 
-BioContext is distributed via [PyPI](https://pypi.org/project/biocontext/) and can be installed with standard package managers or run zero-install via `uvx`.
+BioContext is distributed via [PyPI](https://pypi.org/project/biocontext-mcp/) and can be installed with standard package managers or run zero-install via `uvx`.
 
 ### Standard Installation (PyPI)
 
 ```bash
 # Using pip
-pip install biocontext
+pip install biocontext-mcp
 
 # Using uv (Recommended for global CLI usage)
-uv tool install biocontext
+uv tool install biocontext-mcp
 ```
 
 ### Local Development Setup
@@ -104,7 +104,7 @@ Add BioContext to your AI editor's MCP configuration:
   "mcpServers": {
     "biocontext": {
       "command": "uvx",
-      "args": ["biocontext", "serve"]
+      "args": ["biocontext-mcp", "serve"]
     }
   }
 }
