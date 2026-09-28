@@ -5,8 +5,8 @@ authors:
     given-names: "Engki"
     orcid: "https://orcid.org/0009-0003-7308-3900"
 title: "BioContext: Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
-version: 0.1.0
-date-released: 2026-09-27
+version: 0.5.0
+date-released: 2026-09-28
 url: "https://github.com/CORE-Lab-Research/biocontext"
 repository-code: "https://github.com/CORE-Lab-Research/biocontext"
 license: Apache-2.0

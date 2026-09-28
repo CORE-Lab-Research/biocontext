@@ -1,6 +1,6 @@
 [project]
 name = "biocontext"
-version = "0.1.0"
+version = "0.5.0"
 description = "Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
 readme = "README.md"
 authors = [
