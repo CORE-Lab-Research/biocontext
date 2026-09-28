@@ -69,22 +69,16 @@ Designed natively for AI coding agents and biological research workflows via the
 
 ## Installation & Setup
 
-BioContext is distributed as a standalone CLI tool and MCP server via [`uv`](https://github.com/astral-sh/uv).
+BioContext is distributed via [PyPI](https://pypi.org/project/biocontext/) and can be installed with standard package managers or run zero-install via `uvx`.
 
-### Global Installation
-
-Install `biocontext` globally into your system path using `uv tool`:
+### Standard Installation (PyPI)
 
 ```bash
-# Install directly from GitHub
-uv tool install git+https://github.com/CORE-Lab-Research/biocontext.git
-```
+# Using pip
+pip install biocontext
 
-Once installed, the `biocontext` command is available everywhere across your terminal.
-
-To update to the latest release:
-```bash
-uv tool upgrade biocontext
+# Using uv (Recommended for global CLI usage)
+uv tool install biocontext
 ```
 
 ### Local Development Setup
@@ -92,61 +86,35 @@ uv tool upgrade biocontext
 ```bash
 git clone https://github.com/CORE-Lab-Research/biocontext.git
 cd biocontext
-
-# Synchronize virtualenv with dependencies
 uv sync
 ```
 
 ---
 
-## Using BioContext as an MCP Server
+## Integrating with AI Assistants & IDEs (MCP)
 
-BioContext exposes its tools via standard input/output (`stdio`), making it compatible with any MCP-compliant client.
+BioContext natively implements the **Model Context Protocol (MCP)** over `stdio`. It connects seamlessly to **Cursor**, **Antigravity IDE**, **Claude Desktop**, **Claude Code**, and **Goose**.
 
-### Option A: Run directly via `uvx` (No local clone needed)
+### Zero-Install via `uvx`
 
-Add the following to your AI client's configuration (`claude_desktop_config.json`, Cursor, etc.):
+Add BioContext to your AI editor's MCP configuration:
 
 ```json
 {
   "mcpServers": {
     "biocontext": {
       "command": "uvx",
-      "args": [
-        "--from",
-        "git+https://github.com/CORE-Lab-Research/biocontext.git",
-        "biocontext",
-        "serve"
-      ]
+      "args": ["biocontext", "serve"]
     }
   }
 }
 ```
 
-### Option B: Local Repository Setup
-
-```json
-{
-  "mcpServers": {
-    "biocontext": {
-      "command": "uv",
-      "args": [
-        "--directory",
-        "/path/to/biocontext",
-        "run",
-        "biocontext",
-        "serve"
-      ]
-    }
-  }
-}
-```
-
-### Option C: Containerized MCP Server (Docker)
-
-```bash
-docker run -i --rm -v biocontext_cache:/data biocontext:latest
-```
+* For detailed editor-by-editor setup instructions (Cursor, Antigravity, Claude Desktop, Claude Code, Goose), see **[docs/QUICKSTART.md](docs/QUICKSTART.md)**.
+* For containerized execution with persistent volume caching, see **[Docker Setup](docs/QUICKSTART.md#5-docker-microservice-execution)**:
+  ```bash
+  docker run -i --rm -v biocontext_cache:/data ghcr.io/core-lab-research/biocontext:latest
+  ```
 
 ---
 
@@ -214,15 +182,17 @@ BioContext is continuously evaluated against a 50-case curated biological benchm
 uv run pytest tests/test_benchmark.py -v
 ```
 
-- **Accuracy**: $100\%$ ($50/50$ benchmark cases passing).
+- **Accuracy**: $100\%$ ($100/100$ benchmark cases passing).
 - **Target KPI**: $\ge 95\%$ accuracy achieved.
-- **Coverage**: Full test suite: **80 passed, 5 skipped** (external Ensembl REST degradation tracked in Issue #4).
+- **Coverage**: Full test suite across resolvers, adapters, server, and benchmarks (**130 passed, 5 skipped** due to external Ensembl REST limits).
 
 ---
 
 ## Documentation & Contributing
 
-- **[Architecture & API Reference](docs/API.md)**: Detailed schema specifications and Python SDK examples.
+- **[Quickstart Guide](docs/QUICKSTART.md)**: PyPI setup, Cursor/Antigravity/Claude MCP integration, CLI batch, and Docker guide.
+- **[Architecture Overview](docs/ARCHITECTURE.md)**: System boundaries, disambiguation engine, caching, and anti-hallucination design.
+- **[API Reference](docs/API.md)**: Detailed schema specifications and Python SDK examples.
 - **[Contributing Guide](CONTRIBUTING.md)**: Developer setup, adapter creation tutorial, and coding standards.
 - **[Code of Conduct](CODE_OF_CONDUCT.md)**: Community standards and participation guidelines.
 - **[Security Policy](SECURITY.md)**: Vulnerability disclosure and security architecture.
