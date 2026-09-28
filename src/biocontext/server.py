@@ -187,6 +187,54 @@ async def get_go_term(go_id: str) -> str:
     return json.dumps(term, indent=2)
 
 
+@mcp.tool()
+async def get_pathways(
+    query: str,
+    taxon_id: int = 9606,
+    species: str = "Homo sapiens",
+    limit: int = 20
+) -> str:
+    """Fetch biological pathways involving a gene or protein from Reactome.
+
+    Args:
+        query: Gene symbol (e.g. 'TP53'), alias, or UniProt accession (e.g. 'P04637').
+        taxon_id: NCBI Taxonomy ID (default: 9606 for human).
+        species: Species name (default: 'Homo sapiens').
+        limit: Maximum number of pathways to return (default: 20).
+
+    Returns:
+        JSON string containing the list of pathways with names, stable IDs, and Reactome links.
+    """
+    context = await resolver.get_pathways(
+        query=query,
+        taxon_id=taxon_id,
+        species=species,
+        limit=limit
+    )
+    if not context:
+        return '{"status": "not_found", "query": "%s", "taxon_id": %d}' % (query, taxon_id)
+
+    return context.model_dump_json(indent=2)
+
+
+@mcp.tool()
+async def get_pathway_details(st_id: str) -> str:
+    """Fetch detailed information for a Reactome pathway by its stable identifier.
+
+    Args:
+        st_id: Reactome pathway stable ID (e.g. 'R-HSA-5357801' for Programmed Cell Death).
+
+    Returns:
+        JSON string containing pathway name, species, summary text, and diagram availability.
+    """
+    details = await resolver.reactome.fetch_pathway_details(st_id)
+    if not details:
+        return '{"status": "not_found", "st_id": "%s"}' % st_id
+
+    import json
+    return json.dumps(details, indent=2)
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")

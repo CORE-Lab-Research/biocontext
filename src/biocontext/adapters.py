@@ -16,6 +16,8 @@ from biocontext.schemas import (
     GeneEntity,
     GenomicLocation,
     OrthologEntity,
+    PathwayContext,
+    PathwayEntity,
     ProteinEntity,
     TranscriptEntity,
 )
@@ -1037,6 +1039,135 @@ class GeneOntologyAdapter(BaseBioAdapter):
         # Cache results as list of dicts
         self.cache.set("go", cache_key, [a.model_dump() for a in annotations])
         return annotations
+
+
+class ReactomeAdapter(BaseBioAdapter):
+    """Adapter for Reactome Content Service REST API.
+    Authoritative knowledge base for biological pathways, molecular reactions, and processes.
+    """
+
+    BASE_URL = "https://reactome.org/ContentService"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="Reactome", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.REACTOME_RPS)
+
+    async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
+        """Reactome does not resolve primary gene symbols; delegating to primary resolver."""
+        return None
+
+    async def fetch_pathways_by_uniprot(
+        self,
+        uniprot_accession: str,
+        species: str = "Homo sapiens",
+        limit: int = 25
+    ) -> List[PathwayEntity]:
+        """Fetch biological pathways containing the given UniProt accession."""
+        clean_acc = uniprot_accession.strip().upper()
+        cache_key = f"uniprot:{clean_acc}:sp:{species}:lim:{limit}"
+        cached = self.cache.get("reactome", cache_key)
+        if cached and isinstance(cached, list):
+            return [PathwayEntity(**item) for item in cached if isinstance(item, dict)]
+
+        url = f"{self.BASE_URL}/data/mapping/UniProt/{clean_acc}/pathways"
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.REACTOME_TIMEOUT_SEC) as client:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("Reactome pathway mapping failed | acc=%s status=%d", clean_acc, resp.status_code)
+                    return []
+                raw_data = resp.json()
+        except Exception as e:
+            logger.error("Reactome pathway mapping exception | acc=%s error=%s", clean_acc, str(e))
+            return []
+
+        if not isinstance(raw_data, list):
+            return []
+
+        pathways: List[PathwayEntity] = []
+        seen_st_ids = set()
+
+        for item in raw_data:
+            if not isinstance(item, dict):
+                continue
+            st_id = item.get("stId")
+            if not st_id or st_id in seen_st_ids:
+                continue
+
+            # Species filter if provided
+            item_species = item.get("speciesName") or "Homo sapiens"
+            if species and species.lower() not in item_species.lower():
+                continue
+
+            name = item.get("displayName") or (item.get("name", [""])[0] if item.get("name") else st_id)
+            is_in_disease = item.get("isInDisease", False)
+            url_link = f"https://reactome.org/PathwayBrowser/#/{st_id}"
+
+            seen_st_ids.add(st_id)
+            pathways.append(
+                PathwayEntity(
+                    st_id=st_id,
+                    name=name,
+                    species=item_species,
+                    is_in_disease=is_in_disease,
+                    url=url_link,
+                    summary=None
+                )
+            )
+            if len(pathways) >= limit:
+                break
+
+        self.cache.set("reactome", cache_key, [p.model_dump() for p in pathways])
+        return pathways
+
+    async def fetch_pathway_details(self, st_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch detailed information for a pathway by its Reactome stable ID."""
+        clean_id = st_id.strip().upper()
+        cache_key = f"pathway:{clean_id}"
+        cached = self.cache.get("reactome", cache_key)
+        if cached and isinstance(cached, dict):
+            return cached
+
+        url = f"{self.BASE_URL}/data/query/{clean_id}"
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.REACTOME_TIMEOUT_SEC) as client:
+                resp = await client.get(url, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("Reactome pathway query failed | st_id=%s status=%d", clean_id, resp.status_code)
+                    return None
+                data = resp.json()
+        except Exception as e:
+            logger.error("Reactome pathway query exception | st_id=%s error=%s", clean_id, str(e))
+            return None
+
+        if not isinstance(data, dict):
+            return None
+
+        summation_text = None
+        summations = data.get("summation", [])
+        if summations and isinstance(summations, list):
+            first_sum = summations[0]
+            if isinstance(first_sum, dict):
+                summation_text = first_sum.get("text")
+
+        details = {
+            "st_id": data.get("stId", clean_id),
+            "name": data.get("displayName") or clean_id,
+            "species": data.get("speciesName", "Homo sapiens"),
+            "is_in_disease": data.get("isInDisease", False),
+            "release_date": data.get("releaseDate"),
+            "url": f"https://reactome.org/PathwayBrowser/#/{clean_id}",
+            "summary": summation_text,
+            "has_diagram": data.get("hasDiagram", False),
+            "has_ehld": data.get("hasEHLD", False)
+        }
+
+        self.cache.set("reactome", cache_key, details)
+        return details
 
 
 

@@ -36,6 +36,8 @@ class RateLimitConfig:
     MGI_TIMEOUT_SEC: float = 15.0
     QUICKGO_RPS: float = 10.0
     QUICKGO_TIMEOUT_SEC: float = 15.0
+    REACTOME_RPS: float = 5.0
+    REACTOME_TIMEOUT_SEC: float = 15.0
 
 
 
@@ -135,6 +137,22 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
         "help": "Fetch Gene Ontology term definition and metadata by GO ID",
         "arguments": [
             {"flags": ["go_id"], "help": "Gene Ontology identifier (e.g. GO:0006915)"}
+        ]
+    },
+    {
+        "name": "pathway",
+        "help": "Fetch biological pathways associated with a gene or protein (Reactome)",
+        "arguments": [
+            {"flags": ["query"], "help": "Gene symbol or identifier (e.g. TP53, BRCA1)"},
+            {"flags": ["--taxon"], "type": int, "default": 9606, "help": "NCBI Taxonomy ID (default: 9606 for human)"},
+            {"flags": ["--limit"], "type": int, "default": 20, "help": "Max pathways to return (default: 20)"}
+        ]
+    },
+    {
+        "name": "pathway-info",
+        "help": "Fetch detailed pathway information by Reactome stable ID",
+        "arguments": [
+            {"flags": ["st_id"], "help": "Reactome stable ID (e.g. R-HSA-5357801)"}
         ]
     },
 

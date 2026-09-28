@@ -129,3 +129,23 @@ class FunctionalAnnotation(BaseModel):
     biological_processes: List[GOAnnotation] = Field(default_factory=list, description="Biological Process (BP) annotations")
     cellular_components: List[GOAnnotation] = Field(default_factory=list, description="Cellular Component (CC) annotations")
     total_annotations: int = Field(0, description="Total count of annotations retrieved")
+
+
+class PathwayEntity(BaseModel):
+    """Standardized representation of a biological pathway from Reactome."""
+    st_id: str = Field(..., description="Reactome stable identifier (e.g. 'R-HSA-5357801')")
+    name: str = Field(..., description="Pathway name (e.g. 'Programmed Cell Death')")
+    species: str = Field("Homo sapiens", description="Species scientific name")
+    is_in_disease: bool = Field(False, description="Flag indicating if this pathway is associated with disease state")
+    url: Optional[str] = Field(None, description="Web link to the Reactome pathway browser diagram")
+    summary: Optional[str] = Field(None, description="Brief description or summation text of the pathway")
+
+
+class PathwayContext(BaseModel):
+    """Pathway systems biology context for a biological entity."""
+    query: str = Field(..., description="Original input query or gene symbol")
+    taxon_id: int = Field(9606, description="NCBI Taxonomy ID")
+    uniprot_accession: Optional[str] = Field(None, description="UniProt accession used for pathway mapping")
+    source: str = Field("Reactome", description="Authoritative pathway knowledge base")
+    pathways: List[PathwayEntity] = Field(default_factory=list, description="List of associated biological pathways")
+    total_pathways: int = Field(0, description="Total count of pathways retrieved")
