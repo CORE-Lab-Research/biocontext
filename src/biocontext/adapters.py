@@ -159,8 +159,8 @@ class HGNCAdapter(BaseBioAdapter):
             except Exception as e:
                 logger.warning(f"HGNC prev_symbol lookup failed | error={e}")
 
-        # 2. Check alias_symbol
-        url = f"{self.BASE_URL}/search/alias_symbol/{alias.upper()}"
+        # 2. Check alias_symbol (use /fetch endpoint to get full metadata for accurate ranking)
+        url = f"{self.BASE_URL}/fetch/alias_symbol/{alias.upper()}"
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
                 resp = await client.get(url, headers=self.headers)
@@ -173,6 +173,28 @@ class HGNCAdapter(BaseBioAdapter):
 
         if not docs:
             return None
+
+        # Prioritize:
+        # 1. Exact case match in alias_symbol (e.g. "p21" vs "P21")
+        # 2. Mention in prev_name / alias_name (e.g. CDKN1A previous name was "cyclin-dependent kinase inhibitor 1A (p21, Cip1)")
+        # 3. Protein-coding genes over pseudogenes
+        # 4. Authority cross-references and citation prominence
+        def alias_rank_key(d: Dict[str, Any]) -> tuple:
+            aliases = d.get("alias_symbol", [])
+            exact_case = 1 if alias in aliases else 0
+            
+            # Check prev_name / alias_name mention
+            text_context = " ".join(d.get("prev_name", []) + d.get("alias_name", []) + [d.get("name", "")]).lower()
+            name_mention = 1 if alias.lower() in text_context else 0
+
+            is_protein_coding = 1 if d.get("locus_group") == "protein-coding gene" or d.get("locus_type") == "gene with protein product" else 0
+            pubmed_count = len(d.get("pubmed_id", []))
+            has_omim = 1 if d.get("omim_id") else 0
+            has_mane = 1 if d.get("mane_select") else 0
+            
+            return (name_mention, exact_case, is_protein_coding, has_omim + has_mane, pubmed_count)
+
+        docs.sort(key=alias_rank_key, reverse=True)
 
         primary_symbol = docs[0].get("symbol")
         if primary_symbol:
