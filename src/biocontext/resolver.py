@@ -5,6 +5,7 @@ from biocontext.adapters import (
     HGNCAdapter,
     MGIAdapter,
     NCBIAdapter,
+    ReactomeAdapter,
     UniProtAdapter,
 )
 from biocontext.base import SQLiteCache
@@ -14,6 +15,8 @@ from biocontext.schemas import (
     FunctionalAnnotation,
     GOAnnotation,
     MatchReason,
+    PathwayContext,
+    PathwayEntity,
     ResolutionContext,
     ResolutionResult,
 )
@@ -38,6 +41,7 @@ class EntityResolver:
         self.ensembl = EnsemblAdapter(cache=self.cache, email=email)
         self.mgi = MGIAdapter(cache=self.cache, email=email)
         self.go = GeneOntologyAdapter(cache=self.cache, email=email)
+        self.reactome = ReactomeAdapter(cache=self.cache, email=email)
 
 
 
@@ -393,5 +397,61 @@ class EntityResolver:
             biological_processes=bp_list[:max_terms_per_aspect],
             cellular_components=cc_list[:max_terms_per_aspect],
             total_annotations=len(mf_list) + len(bp_list) + len(cc_list)
+        )
+
+    async def get_pathways(
+        self,
+        query: str,
+        taxon_id: int = 9606,
+        species: str = "Homo sapiens",
+        limit: int = 25
+    ) -> Optional[PathwayContext]:
+        """Fetch biological pathways associated with a gene or protein query from Reactome.
+
+        Resolves gene to a UniProt accession first, then queries Reactome Content Service.
+        """
+        clean_q = query.strip()
+        uniprot_acc: Optional[str] = None
+
+        # 1. If query is already a UniProt accession (e.g. P04637)
+        if len(clean_q) in (6, 10) and (clean_q[0].isalpha() and clean_q[-1].isalnum()):
+            protein = await self.uniprot.fetch_by_accession(clean_q)
+            if protein:
+                uniprot_acc = protein.accession
+
+        # 2. If not an accession, resolve via EntityResolver
+        if not uniprot_acc:
+            res = await self.resolve(clean_q, taxon_id=taxon_id)
+            if res and res.resolved_entity:
+                entity = res.resolved_entity
+                if entity.uniprot_ids:
+                    uniprot_acc = entity.uniprot_ids[0]
+
+        # 3. Fallback: try UniProt adapter directly
+        if not uniprot_acc:
+            u_res = await self.uniprot.resolve_gene(clean_q, taxon_id=taxon_id)
+            if u_res and "entity" in u_res:
+                ent = u_res["entity"]
+                if hasattr(ent, "uniprot_ids") and ent.uniprot_ids:
+                    uniprot_acc = ent.uniprot_ids[0]
+
+        if not uniprot_acc:
+            logger.warning("Could not map gene query '%s' to a UniProt accession for pathway mapping", clean_q)
+            return None
+
+        # Fetch pathways from Reactome
+        pathways = await self.reactome.fetch_pathways_by_uniprot(
+            uniprot_accession=uniprot_acc,
+            species=species,
+            limit=limit
+        )
+
+        return PathwayContext(
+            query=clean_q,
+            taxon_id=taxon_id,
+            uniprot_accession=uniprot_acc,
+            source="Reactome",
+            pathways=pathways,
+            total_pathways=len(pathways)
         )
 

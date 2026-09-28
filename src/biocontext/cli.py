@@ -127,6 +127,26 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(json.dumps(term, indent=2))
         return 0
 
+    elif args.command == "pathway":
+        context = await resolver.get_pathways(
+            query=args.query,
+            taxon_id=args.taxon,
+            limit=args.limit
+        )
+        if not context:
+            print(json.dumps({"status": "not_found", "query": args.query, "taxon_id": args.taxon}, indent=2))
+            return 1
+        print(context.model_dump_json(indent=2))
+        return 0
+
+    elif args.command == "pathway-info":
+        details = await resolver.reactome.fetch_pathway_details(args.st_id)
+        if not details:
+            print(json.dumps({"status": "not_found", "st_id": args.st_id}, indent=2))
+            return 1
+        print(json.dumps(details, indent=2))
+        return 0
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -159,7 +179,10 @@ def main():
     elif args.command == "test":
         import pytest
         sys.exit(pytest.main(["tests/", "-v"]))
-    elif args.command in ("resolve", "batch", "protein", "transcripts", "ortholog", "mouse", "annotate", "go", "cache"):
+    elif args.command in (
+        "resolve", "batch", "protein", "transcripts", "ortholog", "mouse",
+        "annotate", "go", "pathway", "pathway-info", "cache"
+    ):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
         parser.print_help()
