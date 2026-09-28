@@ -14,16 +14,16 @@ BioContext is distributed on PyPI and can be installed with any standard Python 
 
 ### Standard `pip` Installation
 ```bash
-pip install biocontext
+pip install biocontext-mcp
 ```
 
 ### Modern `uv` Tool / Virtualenv (Recommended)
 ```bash
 # Install globally into your PATH as a CLI tool:
-uv tool install biocontext
+uv tool install biocontext-mcp
 
 # Or add to your active project environment:
-uv add biocontext
+uv add biocontext-mcp
 ```
 
 ---
@@ -38,14 +38,14 @@ BioContext natively implements the **Model Context Protocol (MCP)** over `stdio`
 3. Fill in:
    - **Name**: `biocontext`
    - **Type**: `command`
-   - **Command**: `uvx biocontext serve`
+   - **Command**: `uvx biocontext-mcp serve`
 4. Or configure directly in `.cursor/mcp.json`:
 ```json
 {
   "mcpServers": {
     "biocontext": {
       "command": "uvx",
-      "args": ["biocontext", "serve"]
+      "args": ["biocontext-mcp", "serve"]
     }
   }
 }
@@ -58,7 +58,7 @@ In Antigravity IDE, configure MCP servers in your workspace config (`.agents/mcp
   "mcpServers": {
     "biocontext": {
       "command": "uvx",
-      "args": ["biocontext", "serve"]
+      "args": ["biocontext-mcp", "serve"]
     }
   }
 }
@@ -75,7 +75,7 @@ Add BioContext to your `claude_desktop_config.json`:
   "mcpServers": {
     "biocontext": {
       "command": "uvx",
-      "args": ["biocontext", "serve"]
+      "args": ["biocontext-mcp", "serve"]
     }
   }
 }
@@ -84,7 +84,7 @@ Add BioContext to your `claude_desktop_config.json`:
 ### D. Claude Code (CLI)
 When running Anthropic's `claude` CLI in your terminal:
 ```bash
-claude mcp add biocontext uvx biocontext serve
+claude mcp add biocontext uvx biocontext-mcp serve
 ```
 
 ### E. Codex / Goose / Custom Agentic Frameworks
@@ -94,7 +94,7 @@ For any MCP client supporting JSON-RPC over `stdio`, execute:
 biocontext serve
 
 # Or zero-install via uvx:
-uvx biocontext serve
+uvx biocontext-mcp serve
 ```
 
 ---
