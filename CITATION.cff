@@ -3,7 +3,7 @@ message: "If you use BioContext in your research, please cite it as below."
 authors:
   - family-names: "Nandatama"
     given-names: "Engki"
-    orcid: ""
+    orcid: "https://orcid.org/0009-0003-7308-3900"
 title: "BioContext: Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
 version: 0.1.0
 date-released: 2026-09-27
