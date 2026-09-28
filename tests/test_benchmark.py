@@ -67,6 +67,66 @@ BENCHMARK_DATA = [
     {"query": "Kras", "taxon": 10090, "expected_symbol": "Kras", "expected_status": "ncbi_matched"},
     {"query": "16653", "taxon": 10090, "expected_symbol": "Kras", "expected_status": "exact"},
     {"query": "MGI:96680", "taxon": 10090, "expected_symbol": "Kras", "expected_status": "exact"},
+
+    # 51-65: Human Disease, Metabolism & Signaling Regulators (exact symbols)
+    {"query": "SMAD4", "taxon": 9606, "expected_symbol": "SMAD4", "expected_status": "exact"},
+    {"query": "VHL", "taxon": 9606, "expected_symbol": "VHL", "expected_status": "exact"},
+    {"query": "APC", "taxon": 9606, "expected_symbol": "APC", "expected_status": "exact"},
+    {"query": "NOTCH1", "taxon": 9606, "expected_symbol": "NOTCH1", "expected_status": "exact"},
+    {"query": "JAK2", "taxon": 9606, "expected_symbol": "JAK2", "expected_status": "exact"},
+    {"query": "ESR1", "taxon": 9606, "expected_symbol": "ESR1", "expected_status": "exact"},
+    {"query": "AR", "taxon": 9606, "expected_symbol": "AR", "expected_status": "exact"},
+    {"query": "MTOR", "taxon": 9606, "expected_symbol": "MTOR", "expected_status": "exact"},
+    {"query": "PARP1", "taxon": 9606, "expected_symbol": "PARP1", "expected_status": "exact"},
+    {"query": "FLT3", "taxon": 9606, "expected_symbol": "FLT3", "expected_status": "exact"},
+    {"query": "IDH1", "taxon": 9606, "expected_symbol": "IDH1", "expected_status": "exact"},
+    {"query": "IDH2", "taxon": 9606, "expected_symbol": "IDH2", "expected_status": "exact"},
+    {"query": "BCL2", "taxon": 9606, "expected_symbol": "BCL2", "expected_status": "exact"},
+    {"query": "CTNNB1", "taxon": 9606, "expected_symbol": "CTNNB1", "expected_status": "exact"},
+    {"query": "FGFR3", "taxon": 9606, "expected_symbol": "FGFR3", "expected_status": "exact"},
+
+    # 66-75: Widely used clinical aliases, surface markers & oncogenes
+    {"query": "c-Myc", "taxon": 9606, "expected_symbol": "MYC", "expected_status": "alias"},
+    {"query": "p27Kip1", "taxon": 9606, "expected_symbol": "CDKN1B", "expected_status": "alias"},
+    {"query": "KDR", "taxon": 9606, "expected_symbol": "KDR", "expected_status": "exact"},
+    {"query": "PD-1", "taxon": 9606, "expected_symbol": "PDCD1", "expected_status": "alias"},
+    {"query": "PD-L1", "taxon": 9606, "expected_symbol": "CD274", "expected_status": "alias"},
+    {"query": "CTLA-4", "taxon": 9606, "expected_symbol": "CTLA4", "expected_status": "alias"},
+    {"query": "TNF-alpha", "taxon": 9606, "expected_symbol": "TNF", "expected_status": "alias"},
+    {"query": "Bcl-xL", "taxon": 9606, "expected_symbol": "BCL2L1", "expected_status": "alias"},
+    {"query": "CD19", "taxon": 9606, "expected_symbol": "CD19", "expected_status": "exact"},
+    {"query": "CD20", "taxon": 9606, "expected_symbol": "MS4A1", "expected_status": "alias"},
+
+    # 76-85: Entrez Gene ID lookups
+    {"query": "472", "taxon": 9606, "expected_symbol": "ATM", "expected_status": "exact"},
+    {"query": "596", "taxon": 9606, "expected_symbol": "BCL2", "expected_status": "exact"},
+    {"query": "1499", "taxon": 9606, "expected_symbol": "CTNNB1", "expected_status": "exact"},
+    {"query": "2099", "taxon": 9606, "expected_symbol": "ESR1", "expected_status": "exact"},
+    {"query": "238", "taxon": 9606, "expected_symbol": "ALK", "expected_status": "exact"},
+    {"query": "2475", "taxon": 9606, "expected_symbol": "MTOR", "expected_status": "exact"},
+    {"query": "5156", "taxon": 9606, "expected_symbol": "PDGFRA", "expected_status": "exact"},
+    {"query": "673", "taxon": 9606, "expected_symbol": "BRAF", "expected_status": "exact"},
+    {"query": "7422", "taxon": 9606, "expected_symbol": "VEGFA", "expected_status": "exact"},
+    {"query": "3569", "taxon": 9606, "expected_symbol": "IL6", "expected_status": "exact"},
+
+    # 86-92: UniProtKB accession lookups
+    {"query": "P15056", "taxon": 9606, "expected_symbol": "BRAF", "expected_status": "exact"},
+    {"query": "P60484", "taxon": 9606, "expected_symbol": "PTEN", "expected_status": "exact"},
+    {"query": "P01106", "taxon": 9606, "expected_symbol": "MYC", "expected_status": "exact"},
+    {"query": "P04626", "taxon": 9606, "expected_symbol": "ERBB2", "expected_status": "exact"},
+    {"query": "P42345", "taxon": 9606, "expected_symbol": "MTOR", "expected_status": "exact"},
+    {"query": "Q969H0", "taxon": 9606, "expected_symbol": "FBXW7", "expected_status": "exact"},
+    {"query": "P22607", "taxon": 9606, "expected_symbol": "FGFR3", "expected_status": "exact"},
+
+    # 93-100: Additional Cross-species Mus musculus (symbols, Entrez, MGI)
+    {"query": "Braf", "taxon": 10090, "expected_symbol": "Braf", "expected_status": "ncbi_matched"},
+    {"query": "Myc", "taxon": 10090, "expected_symbol": "Myc", "expected_status": "ncbi_matched"},
+    {"query": "Pten", "taxon": 10090, "expected_symbol": "Pten", "expected_status": "ncbi_matched"},
+    {"query": "Cdkn2a", "taxon": 10090, "expected_symbol": "Cdkn2a", "expected_status": "ncbi_matched"},
+    {"query": "Pik3ca", "taxon": 10090, "expected_symbol": "Pik3ca", "expected_status": "ncbi_matched"},
+    {"query": "109880", "taxon": 10090, "expected_symbol": "Braf", "expected_status": "exact"},
+    {"query": "MGI:88190", "taxon": 10090, "expected_symbol": "Braf", "expected_status": "exact"},
+    {"query": "19211", "taxon": 10090, "expected_symbol": "Pten", "expected_status": "exact"},
 ]
 
 
