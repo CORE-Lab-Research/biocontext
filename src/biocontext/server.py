@@ -54,19 +54,23 @@ async def get_protein_info(accession: str) -> str:
 
 
 @mcp.tool()
-async def batch_resolve_genes(queries: list[str], taxon_id: int = 9606) -> str:
-    """Resolve a list of gene identifiers/aliases in batch.
+async def batch_resolve_genes(
+    queries: list[str],
+    taxon_id: int = 9606,
+    concurrency: int = 10
+) -> str:
+    """Resolve a list of gene identifiers/aliases in batch with concurrency control and performance metrics.
 
     Args:
-        queries: List of gene symbols or aliases (e.g. ["TP53", "HER2", "EGFR"]).
+        queries: List of gene symbols or aliases (e.g. ["TP53", "HER2", "EGFR", "7157", "P04637"]).
         taxon_id: NCBI Taxonomy ID (default: 9606 for human).
+        concurrency: Maximum concurrent requests (default: 10).
 
     Returns:
-        JSON string containing list of resolved entity results.
+        JSON string containing the batch resolution summary, success rate, and resolved entities.
     """
-    tasks = [resolver.resolve(q, taxon_id=taxon_id) for q in queries]
-    results = await asyncio.gather(*tasks)
-    return "[" + ",\n".join(r.model_dump_json(indent=2) for r in results) + "]"
+    summary = await resolver.resolve_batch(queries=queries, taxon_id=taxon_id, concurrency=concurrency)
+    return summary.model_dump_json(indent=2)
 
 
 @mcp.tool()

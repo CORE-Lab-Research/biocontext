@@ -12,6 +12,7 @@ from biocontext.base import SQLiteCache
 from biocontext.config import ScoringConfig
 from biocontext.logging import get_logger
 from biocontext.schemas import (
+    BatchResolutionSummary,
     FunctionalAnnotation,
     GOAnnotation,
     MatchReason,
@@ -453,5 +454,70 @@ class EntityResolver:
             source="Reactome",
             pathways=pathways,
             total_pathways=len(pathways)
+        )
+
+    async def resolve_batch(
+        self,
+        queries: List[str],
+        taxon_id: int = 9606,
+        concurrency: int = 10
+    ) -> BatchResolutionSummary:
+        """Resolve a batch of gene queries concurrently with semaphore rate limiting.
+
+        Designed to process high-throughput gene lists (e.g. differential expression results).
+        """
+        import asyncio
+        import time
+
+        clean_queries = [q.strip() for q in queries if q and q.strip()]
+        if not clean_queries:
+            return BatchResolutionSummary(
+                total_queries=0,
+                resolved_count=0,
+                unresolved_count=0,
+                success_rate=0.0,
+                execution_time_seconds=0.0,
+                results=[]
+            )
+
+        semaphore = asyncio.Semaphore(max(1, concurrency))
+        start_time = time.perf_counter()
+
+        async def _bounded_resolve(query: str) -> ResolutionResult:
+            async with semaphore:
+                try:
+                    return await self.resolve(query=query, taxon_id=taxon_id)
+                except Exception as e:
+                    logger.error("Error during batch resolution of '%s' | error=%s", query, str(e))
+                    return ResolutionResult(
+                        query=query,
+                        match_status="unresolved",
+                        confidence_score=0.0,
+                        resolved_entity=None,
+                        match_reasons=[
+                            MatchReason(
+                                source="BioContextBatch",
+                                rule="exception_error",
+                                confidence=0.0,
+                                details=f"Batch resolution raised exception: {str(e)}"
+                            )
+                        ]
+                    )
+
+        tasks = [_bounded_resolve(q) for q in clean_queries]
+        results = await asyncio.gather(*tasks)
+
+        elapsed = time.perf_counter() - start_time
+        resolved = sum(1 for r in results if r.match_status != "unresolved" and r.resolved_entity is not None)
+        unresolved = len(results) - resolved
+        success_rate = round(resolved / len(results), 4) if results else 0.0
+
+        return BatchResolutionSummary(
+            total_queries=len(results),
+            resolved_count=resolved,
+            unresolved_count=unresolved,
+            success_rate=success_rate,
+            execution_time_seconds=round(elapsed, 3),
+            results=results
         )
 

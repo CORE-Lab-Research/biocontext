@@ -1,5 +1,6 @@
 """Adapters for authoritative biological databases: HGNC, NCBI, and UniProt."""
 
+import asyncio
 import logging
 from typing import Any, Dict, List, Optional
 import httpx
@@ -263,11 +264,22 @@ class UniProtAdapter(BaseBioAdapter):
             return ProteinEntity(**cached)
 
         url = f"{self.BASE_URL}/{accession.upper()}.json"
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=self.headers)
-            if resp.status_code != 200:
-                return None
-            data = resp.json()
+        data = None
+        for attempt in range(3):
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    resp = await client.get(url, headers=self.headers)
+                    if resp.status_code != 200:
+                        return None
+                    data = resp.json()
+                    break
+            except (httpx.TimeoutException, httpx.NetworkError):
+                if attempt == 2:
+                    return None
+                await asyncio.sleep(0.5 * (attempt + 1))
+
+        if not data:
+            return None
 
         primary_acc = data.get("primaryAccession", accession)
         entry_name = data.get("uniProtkbId")
@@ -963,16 +975,25 @@ class GeneOntologyAdapter(BaseBioAdapter):
             params["aspect"] = aspect
 
         url = f"{self.BASE_URL}/annotation/search"
-        await self.rate_limiter.acquire()
-        try:
-            async with httpx.AsyncClient(timeout=RateLimitConfig.QUICKGO_TIMEOUT_SEC) as client:
-                resp = await client.get(url, params=params, headers=self.headers)
-                if resp.status_code != 200:
-                    logger.warning("QuickGO annotation search failed | gene_product=%s status=%d", clean_id, resp.status_code)
+        data = None
+        for attempt in range(3):
+            await self.rate_limiter.acquire()
+            try:
+                async with httpx.AsyncClient(timeout=RateLimitConfig.QUICKGO_TIMEOUT_SEC) as client:
+                    resp = await client.get(url, params=params, headers=self.headers)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    logger.warning("QuickGO annotation search attempt %d failed | gene_product=%s status=%d", attempt + 1, clean_id, resp.status_code)
+            except Exception as e:
+                logger.warning("QuickGO annotation search attempt %d exception | gene_product=%s error=%s", attempt + 1, clean_id, str(e))
+                if attempt == 2:
+                    logger.error("QuickGO annotation search failed after 3 attempts | gene_product=%s", clean_id)
                     return []
-                data = resp.json()
-        except Exception as e:
-            logger.error("QuickGO annotation search exception | gene_product=%s error=%s", clean_id, str(e))
+                import asyncio
+                await asyncio.sleep(0.5)
+
+        if not data:
             return []
 
         annotations: List[GOAnnotation] = []

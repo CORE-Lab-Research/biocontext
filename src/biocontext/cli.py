@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import json
 import sys
+from typing import List
 
 from biocontext.config import CLI_COMMANDS_REGISTRY
 from biocontext.logging import setup_logging
@@ -57,9 +58,70 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         return 0
 
     elif args.command == "batch":
-        tasks = [resolver.resolve(q, taxon_id=args.taxon) for q in args.queries]
-        results = await asyncio.gather(*tasks)
-        print("[" + ",\n".join(r.model_dump_json(indent=2) for r in results) + "]")
+        queries: List[str] = list(args.queries) if args.queries else []
+
+        # Load from file if specified
+        if getattr(args, "file", None):
+            import csv
+            from pathlib import Path
+            input_path = Path(args.file)
+            if not input_path.exists():
+                print(json.dumps({"error": f"Input file not found: {args.file}"}, indent=2), file=sys.stderr)
+                return 1
+
+            text = input_path.read_text(encoding="utf-8").strip()
+            # Check if CSV/TSV or newline delimited
+            if "\n" in text or "," in text or "\t" in text:
+                delimiter = "," if "," in text else ("\t" if "\t" in text else None)
+                if delimiter:
+                    reader = csv.reader(text.splitlines(), delimiter=delimiter)
+                    for row in reader:
+                        for cell in row:
+                            cell_clean = cell.strip()
+                            if cell_clean and not cell_clean.lower().startswith("gene") and not cell_clean.lower().startswith("symbol"):
+                                queries.append(cell_clean)
+                else:
+                    for line in text.splitlines():
+                        line_clean = line.strip()
+                        if line_clean and not line_clean.lower().startswith("gene") and not line_clean.lower().startswith("symbol"):
+                            queries.append(line_clean)
+
+        if not queries:
+            print(json.dumps({"error": "No queries provided. Specify queries as arguments or via --file"}, indent=2), file=sys.stderr)
+            return 1
+
+        concurrency = getattr(args, "concurrency", 10)
+        summary = await resolver.resolve_batch(queries=queries, taxon_id=args.taxon, concurrency=concurrency)
+
+        # Output formatting
+        output_file = getattr(args, "output", None)
+        if output_file:
+            from pathlib import Path
+            out_p = Path(output_file)
+            if out_p.suffix.lower() == ".csv":
+                import csv
+                with open(out_p, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["query", "match_status", "confidence_score", "symbol", "name", "hgnc_id", "ncbi_gene_id", "ensembl_gene_id", "uniprot_ids"])
+                    for r in summary.results:
+                        ent = r.resolved_entity
+                        writer.writerow([
+                            r.query,
+                            r.match_status,
+                            r.confidence_score,
+                            ent.symbol if ent else "",
+                            ent.name if ent else "",
+                            ent.hgnc_id if ent else "",
+                            ent.ncbi_gene_id if ent else "",
+                            ent.ensembl_gene_id if ent else "",
+                            ";".join(ent.uniprot_ids) if ent else ""
+                        ])
+            else:
+                out_p.write_text(summary.model_dump_json(indent=2), encoding="utf-8")
+            print(f"Batch resolution completed: {summary.resolved_count}/{summary.total_queries} resolved ({summary.success_rate * 100:.1f}%) in {summary.execution_time_seconds}s. Output written to {output_file}")
+            return 0
+
+        print(summary.model_dump_json(indent=2))
         return 0
 
     elif args.command == "protein":
