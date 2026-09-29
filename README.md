@@ -1,24 +1,28 @@
 <div align="center">
 
-<img src="docs/assets/biocontext-hero.png" alt="BioContext Logo" width="180" style="margin-bottom: 20px;" />
+<img src="docs/assets/biocontext-hero.png" alt="BioContext" width="460" />
 
-# BioContext
-
-**Authoritative Biological Entity Resolution & Contextual Intelligence Framework**
-
-*Grounding AI agents and computational pipelines in canonical biological truth.*
+<p align="center">
+  <strong>Authoritative Biological Entity Resolution & Contextual Intelligence Framework</strong><br>
+  <em>Grounding AI agents and computational pipelines in canonical biological truth.</em>
+</p>
 
 <p align="center">
   <a href="https://pypi.org/project/biocontext-mcp/"><img src="https://img.shields.io/pypi/v/biocontext-mcp.svg?color=blue&style=flat-square" alt="PyPI Version"></a>
   <a href="https://pypi.org/project/biocontext-mcp/"><img src="https://img.shields.io/pypi/pyversions/biocontext-mcp.svg?style=flat-square" alt="Python Versions"></a>
   <a href="https://doi.org/10.5281/zenodo.23023948"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.23023948-blue.svg?style=flat-square" alt="Zenodo DOI"></a>
-  <a href="https://orcid.org/0009-0003-7308-3900"><img src="https://img.shields.io/badge/ORCID-0009--0003--7308--3900-green.svg?style=flat-square" alt="ORCID"></a>
   <a href="https://github.com/CORE-Lab-Research/biocontext/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/CORE-Lab-Research/biocontext/ci.yml?branch=main&label=CI%2FCD&style=flat-square" alt="CI/CD Status"></a>
   <a href="https://github.com/CORE-Lab-Research/biocontext/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square" alt="License"></a>
   <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-2.x%20Compliant-purple.svg?style=flat-square" alt="MCP Compliant"></a>
+  <br>
+  <img src="https://img.shields.io/badge/Cursor-Supported-black.svg?style=flat-square&logo=cursor" alt="Cursor">
+  <img src="https://img.shields.io/badge/Claude%20Desktop%20%26%20Code-Supported-D97706.svg?style=flat-square&logo=anthropic" alt="Claude">
+  <img src="https://img.shields.io/badge/OpenAI%20Codex-Supported-412991.svg?style=flat-square&logo=openai" alt="OpenAI Codex">
+  <img src="https://img.shields.io/badge/Antigravity%20IDE-Supported-4285F4.svg?style=flat-square&logo=google" alt="Antigravity IDE">
+  <img src="https://img.shields.io/badge/Goose-Supported-teal.svg?style=flat-square" alt="Goose">
 </p>
 
-[Quickstart](docs/QUICKSTART.md) • [Architecture](docs/ARCHITECTURE.md) • [API Reference](docs/API.md) • [Roadmap](PRD/ROADMAP.md) • [Citation](#citation)
+[Quickstart](docs/QUICKSTART.md) • [Architecture Guide](docs/ARCHITECTURE.md) • [API Reference](docs/API.md) • [Roadmap](PRD/ROADMAP.md) • [Citation](#citation)
 
 </div>
 
@@ -54,41 +58,6 @@ Biological nomenclature is notoriously messy: historical aliases, deprecated ide
   * Every resolution result includes exact matching rules, confidence scores ($0.0 - 1.0$), and authoritative source citations. No imaginary biological data.
 * **Model Context Protocol (MCP)**:
   * Native stdio server compliant with MCP 2.x for instant connection to **Cursor**, **Antigravity IDE**, **Claude Desktop**, **Claude Code**, and **Goose**.
-
----
-
-## 🏛️ System Architecture
-
-```
-[ AI Agent / LLM Client ] (Cursor, Antigravity, Claude, Goose, Custom Pipeline)
-            │
-            ▼ MCP Protocol (JSON-RPC over stdio / SSE)
-┌────────────────────────────────────────────────────────┐
-│                   FastMCP Server                       │
-│    src/biocontext/server.py                            │
-└────────────────────────────────────────────────────────┘
-            │
-            ▼
-┌────────────────────────────────────────────────────────┐
-│             Deterministic Entity Resolver              │
-│    src/biocontext/resolver.py                          │
-│    • Hierarchical disambiguation & scoring             │
-│    • High-Throughput Batch Engine (asyncio.Semaphore)  │
-└────────────────────────────────────────────────────────┘
-     │            │           │            │           │
-     ▼            ▼           ▼            ▼           ▼
-┌─────────┐ ┌──────────┐ ┌─────────┐ ┌───────────┐ ┌───────────┐
-│  HGNC   │ │ NCBI/Uni │ │ Ensembl │ │ QuickGO   │ │ Reactome  │
-│ Adapter │ │ Adapters │ │ & MGI   │ │ (Function)│ │ (Pathway) │
-└─────────┘ └──────────┘ └─────────┘ └───────────┘ └───────────┘
-     │            │           │            │           │
-     └────────────┴─────┬─────┴────────────┴───────────┘
-                        ▼
-         ┌──────────────────────────────┐
-         │     SQLite Persistent Cache  │
-         │     (~/.cache/biocontext/..) │
-         └──────────────────────────────┘
-```
 
 ---
 
