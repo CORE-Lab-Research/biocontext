@@ -186,3 +186,26 @@ class TargetAssociationContext(BaseModel):
     total_associations: int = Field(0, description="Total number of associated diseases found")
     associations: List[TargetDiseaseAssociation] = Field(default_factory=list, description="Top ranked disease associations")
 
+
+class PublicationEntity(BaseModel):
+    """Authoritative scientific literature publication from Europe PMC / PubMed."""
+    pmid: Optional[str] = Field(None, description="PubMed Identifier (e.g. '30514107')")
+    pmcid: Optional[str] = Field(None, description="PubMed Central Open Access ID (e.g. 'PMC6280721')")
+    doi: Optional[str] = Field(None, description="Digital Object Identifier (e.g. '10.1038/s41586-018-0774-4')")
+    title: str = Field(..., description="Title of the research publication")
+    authors: List[str] = Field(default_factory=list, description="List of author names")
+    journal: Optional[str] = Field(None, description="Journal title / abbreviation")
+    pub_year: Optional[int] = Field(None, description="Year of publication")
+    abstract_text: Optional[str] = Field(None, description="Abstract summary text")
+    cited_by_count: Optional[int] = Field(None, description="Number of scientific citations")
+    url: Optional[str] = Field(None, description="Direct URL to Europe PMC / PubMed entry")
+
+
+class LiteratureContext(BaseModel):
+    """Curated collection of supporting scientific publications for an entity or query."""
+    query: str = Field(..., description="Input gene symbol, disease name, or query string")
+    source: str = Field("Europe PMC", description="Authoritative literature index queried")
+    total_hits: int = Field(0, description="Total scientific publications matching query")
+    publications: List[PublicationEntity] = Field(default_factory=list, description="Top ranked supporting publications")
+
+

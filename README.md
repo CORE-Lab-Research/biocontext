@@ -137,7 +137,7 @@ biocontext cache clear
 
 ## 🔌 Available MCP Tools
 
-When connected via MCP, BioContext exposes 10 production-ready biological & clinical tools:
+When connected via MCP, BioContext exposes 12 production-ready biological, clinical & literature tools:
 
 | MCP Tool | Signature & Parameters | Description |
 | :--- | :--- | :--- |
@@ -150,7 +150,10 @@ When connected via MCP, BioContext exposes 10 production-ready biological & clin
 | `get_pathway_details`| `st_id: str` | Retrieves descriptive summary and metadata for a Reactome pathway. |
 | `resolve_disease` | `query: str`, `limit: int = 5` | Resolves disease names, synonyms, or IDs to canonical MONDO Disease Ontology entities. |
 | `get_target_diseases` | `gene: str`, `limit: int = 10` | Retrieves evidence-backed therapeutic target-disease associations from Open Targets Platform. |
+| `get_supporting_publications` | `query: str`, `limit: int = 5` | Retrieves peer-reviewed supporting scientific publications and citations from Europe PMC / PubMed. |
+| `get_publication_details` | `identifier: str` | Fetches detailed publication metadata, abstract, and citation counts by PMID, PMCID, or DOI. |
 | `get_mouse_gene` | `mgi_id: str` | Direct lookup of mouse gene models from MGI. |
+
 
 ---
 
