@@ -124,6 +124,13 @@ async def main():
     pathways = await resolver.get_pathways("TP53", limit=5)
     print("Reactome Pathways:", [p.name for p in pathways.pathways])
 
+    # 5. Disease Ontology (MONDO) & Open Targets
+    diseases = await resolver.resolve_disease("Li-Fraumeni", limit=2)
+    print("MONDO Disease:", diseases[0].mondo_id, diseases[0].name)
+
+    target_assocs = await resolver.get_target_diseases("TP53", limit=3)
+    print("Associated Diseases:", [(a.disease_name, a.score) for a in target_assocs.associations])
+
 asyncio.run(main())
 ```
 
@@ -139,6 +146,9 @@ asyncio.run(main())
 | `go` | `biocontext go <GO_ID>` | Inspect GO term metadata. |
 | `pathway` | `biocontext pathway <query> [-l INT]` | Retrieve Reactome pathways. |
 | `pathway-info` | `biocontext pathway-info <ST_ID>` | Retrieve Reactome pathway summation. |
+| `disease` | `biocontext disease <query> [-l INT]` | Resolve disease name or MONDO identifier. |
+| `targets` | `biocontext targets <gene> [-l INT]` | Retrieve Open Targets evidence-backed disease associations. |
 | `mouse` | `biocontext mouse <MGI_ID>` | Lookup mouse gene model via MGI. |
 | `cache` | `biocontext cache [stats\|clear]` | Inspect or clear SQLite cache. |
 | `serve` | `biocontext serve` | Start stdio MCP server for AI clients. |
+

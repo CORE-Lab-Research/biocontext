@@ -1,6 +1,6 @@
 [project]
 name = "biocontext-mcp"
-version = "0.5.1"
+version = "0.6.0"
 description = "Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
 readme = "README.md"
 authors = [

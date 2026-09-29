@@ -209,6 +209,19 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(json.dumps(details, indent=2))
         return 0
 
+    elif args.command == "disease":
+        diseases = await resolver.resolve_disease(query=args.query, limit=args.limit)
+        print(json.dumps([d.model_dump() for d in diseases], indent=2))
+        return 0
+
+    elif args.command == "targets":
+        context = await resolver.get_target_diseases(gene_query=args.gene, limit=args.limit)
+        if not context:
+            print(json.dumps({"status": "not_found", "gene": args.gene}, indent=2))
+            return 1
+        print(context.model_dump_json(indent=2))
+        return 0
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -243,7 +256,7 @@ def main():
         sys.exit(pytest.main(["tests/", "-v"]))
     elif args.command in (
         "resolve", "batch", "protein", "transcripts", "ortholog", "mouse",
-        "annotate", "go", "pathway", "pathway-info", "cache"
+        "annotate", "go", "pathway", "pathway-info", "disease", "targets", "cache"
     ):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
