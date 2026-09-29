@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/biocontext-hero.png" alt="BioContext" width="380" />
+<img src="docs/assets/biocontext-hero.png" alt="BioContext" width="460" />
 
 <p align="center">
   <strong>Authoritative Biological Entity Resolution & Contextual Intelligence Framework</strong><br>
@@ -17,11 +17,12 @@
   <br>
   <img src="https://img.shields.io/badge/Cursor-Supported-black.svg?style=flat-square&logo=cursor" alt="Cursor">
   <img src="https://img.shields.io/badge/Claude%20Desktop%20%26%20Code-Supported-D97706.svg?style=flat-square&logo=anthropic" alt="Claude">
+  <img src="https://img.shields.io/badge/OpenAI%20Codex-Supported-412991.svg?style=flat-square&logo=openai" alt="OpenAI Codex">
   <img src="https://img.shields.io/badge/Antigravity%20IDE-Supported-4285F4.svg?style=flat-square&logo=google" alt="Antigravity IDE">
   <img src="https://img.shields.io/badge/Goose-Supported-teal.svg?style=flat-square" alt="Goose">
 </p>
 
-[Quickstart](docs/QUICKSTART.md) • [Architecture](docs/ARCHITECTURE.md) • [API Reference](docs/API.md) • [Roadmap](PRD/ROADMAP.md) • [Citation](#citation)
+[Quickstart](docs/QUICKSTART.md) • [Architecture Guide](docs/ARCHITECTURE.md) • [API Reference](docs/API.md) • [Roadmap](PRD/ROADMAP.md) • [Citation](#citation)
 
 </div>
 
@@ -57,46 +58,6 @@ Biological nomenclature is notoriously messy: historical aliases, deprecated ide
   * Every resolution result includes exact matching rules, confidence scores ($0.0 - 1.0$), and authoritative source citations. No imaginary biological data.
 * **Model Context Protocol (MCP)**:
   * Native stdio server compliant with MCP 2.x for instant connection to **Cursor**, **Antigravity IDE**, **Claude Desktop**, **Claude Code**, and **Goose**.
-
----
-
-## 🏛️ System Architecture
-
-```mermaid
-graph TD
-    classDef client fill:#eef2ff,stroke:#6366f1,stroke-width:2px,color:#1e1b4b;
-    classDef server fill:#f0fdf4,stroke:#22c55e,stroke-width:2px,color:#14532d;
-    classDef core fill:#faf5ff,stroke:#a855f7,stroke-width:2px,color:#3b0764;
-    classDef adapter fill:#fff7ed,stroke:#f97316,stroke-width:2px,color:#7c2d12;
-    classDef cache fill:#f8fafc,stroke:#64748b,stroke-width:2px,color:#0f172a;
-
-    Client["AI Client / IDE<br><i>(Cursor, Antigravity, Claude, Goose)</i>"]:::client
-    Server["FastMCP Server<br><code>src/biocontext/server.py</code>"]:::server
-    Resolver["Deterministic Entity Resolver<br><code>src/biocontext/resolver.py</code><br>• Hierarchical Disambiguation & Scoring<br>• High-Throughput Batch Engine"]:::core
-    
-    subgraph Adapters ["Authoritative Data Adapters"]
-        HGNC["HGNC<br><i>(Nomenclature)</i>"]:::adapter
-        NCBI["NCBI Entrez<br><i>(Cross-Species)</i>"]:::adapter
-        UniProt["UniProtKB<br><i>(Proteins)</i>"]:::adapter
-        Ensembl["Ensembl<br><i>(Genomics)</i>"]:::adapter
-        MGI["MGI<br><i>(Mouse Models)</i>"]:::adapter
-        QuickGO["QuickGO<br><i>(GO Annotations)</i>"]:::adapter
-        Reactome["Reactome<br><i>(Pathways)</i>"]:::adapter
-    end
-
-    Cache[("Persistent SQLite Cache<br><code>WAL Mode + Configurable TTL</code>")]:::cache
-
-    Client -->|"MCP Protocol (stdio / SSE)"| Server
-    Server -->|"Internal Python API"| Resolver
-    Resolver --> HGNC
-    Resolver --> NCBI
-    Resolver --> UniProt
-    Resolver --> Ensembl
-    Resolver --> MGI
-    Resolver --> QuickGO
-    Resolver --> Reactome
-    Adapters -.->|"Deterministic Caching"| Cache
-```
 
 ---
 
