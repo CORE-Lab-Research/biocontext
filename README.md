@@ -152,7 +152,6 @@ When connected via MCP, BioContext exposes 10 production-ready biological & clin
 | `get_target_diseases` | `gene: str`, `limit: int = 10` | Retrieves evidence-backed therapeutic target-disease associations from Open Targets Platform. |
 | `get_mouse_gene` | `mgi_id: str` | Direct lookup of mouse gene models from MGI. |
 
-
 ---
 
 ## 📊 Empirical Accuracy Benchmark
