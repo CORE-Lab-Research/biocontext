@@ -42,6 +42,9 @@ class RateLimitConfig:
     MONDO_TIMEOUT_SEC: float = 15.0
     OPENTARGETS_RPS: float = 10.0
     OPENTARGETS_TIMEOUT_SEC: float = 15.0
+    EUROPEPMC_RPS: float = 10.0
+    EUROPEPMC_TIMEOUT_SEC: float = 15.0
+
 
 
 
@@ -177,6 +180,21 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
         "arguments": [
             {"flags": ["gene"], "help": "Gene symbol (e.g. TP53) or Ensembl Gene ID"},
             {"flags": ["--limit"], "type": int, "default": 10, "help": "Maximum associations to return (default: 10)"}
+        ]
+    },
+    {
+        "name": "literature",
+        "help": "Search supporting scientific publications from Europe PMC / PubMed",
+        "arguments": [
+            {"flags": ["query"], "help": "Gene symbol, disease name, or scientific query (e.g. TP53)"},
+            {"flags": ["--limit"], "type": int, "default": 5, "help": "Maximum publications to return (default: 5)"}
+        ]
+    },
+    {
+        "name": "paper",
+        "help": "Fetch detailed scientific paper metadata by PMID, PMCID, or DOI",
+        "arguments": [
+            {"flags": ["identifier"], "help": "Publication ID (e.g. 30514107, PMC6280721, or 10.1038/...)"}
         ]
     },
 

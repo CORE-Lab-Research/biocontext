@@ -273,6 +273,38 @@ async def get_target_diseases(gene: str, limit: int = 10) -> str:
     return context.model_dump_json(indent=2)
 
 
+@mcp.tool()
+async def get_supporting_publications(query: str, limit: int = 5) -> str:
+    """Fetch authoritative supporting scientific literature from Europe PMC / PubMed.
+
+    Args:
+        query: Gene symbol (e.g. 'TP53'), disease name, or scientific query string.
+        limit: Maximum number of peer-reviewed publications to return (default: 5).
+
+    Returns:
+        JSON string containing publication titles, journal, year, authors, abstract, and citation counts.
+    """
+    context = await resolver.get_supporting_publications(query=query, limit=limit)
+    return context.model_dump_json(indent=2)
+
+
+@mcp.tool()
+async def get_publication_details(identifier: str) -> str:
+    """Fetch detailed metadata for a specific scientific paper by PMID, PMCID, or DOI.
+
+    Args:
+        identifier: Publication identifier (e.g. PMID '30514107', PMCID 'PMC6280721', or DOI '10.1038/s41586-018-0774-4').
+
+    Returns:
+        JSON string containing full paper metadata, abstract, and direct web links.
+    """
+    pub = await resolver.get_publication_details(identifier=identifier)
+    if not pub:
+        return '{"status": "not_found", "identifier": "%s"}' % identifier
+
+    return pub.model_dump_json(indent=2)
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")

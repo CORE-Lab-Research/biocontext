@@ -148,7 +148,10 @@ asyncio.run(main())
 | `pathway-info` | `biocontext pathway-info <ST_ID>` | Retrieve Reactome pathway summation. |
 | `disease` | `biocontext disease <query> [-l INT]` | Resolve disease name or MONDO identifier. |
 | `targets` | `biocontext targets <gene> [-l INT]` | Retrieve Open Targets evidence-backed disease associations. |
+| `literature` | `biocontext literature <query> [-l INT]` | Search supporting peer-reviewed publications from Europe PMC / PubMed. |
+| `paper` | `biocontext paper <identifier>` | Fetch detailed paper metadata and abstract by PMID, PMCID, or DOI. |
 | `mouse` | `biocontext mouse <MGI_ID>` | Lookup mouse gene model via MGI. |
 | `cache` | `biocontext cache [stats\|clear]` | Inspect or clear SQLite cache. |
 | `serve` | `biocontext serve` | Start stdio MCP server for AI clients. |
+
 

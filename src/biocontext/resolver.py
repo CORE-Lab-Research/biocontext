@@ -6,6 +6,7 @@ from biocontext.adapters import (
     EnsemblAdapter,
     GeneOntologyAdapter,
     HGNCAdapter,
+    LiteratureAdapter,
     MGIAdapter,
     MondoAdapter,
     NCBIAdapter,
@@ -21,9 +22,11 @@ from biocontext.schemas import (
     DiseaseEntity,
     FunctionalAnnotation,
     GOAnnotation,
+    LiteratureContext,
     MatchReason,
     PathwayContext,
     PathwayEntity,
+    PublicationEntity,
     ResolutionContext,
     ResolutionResult,
     TargetAssociationContext,
@@ -53,6 +56,8 @@ class EntityResolver:
         self.reactome = ReactomeAdapter(cache=self.cache, email=email)
         self.mondo = MondoAdapter(cache=self.cache, email=email)
         self.opentargets = OpenTargetsAdapter(cache=self.cache, email=email)
+        self.literature = LiteratureAdapter(cache=self.cache, email=email)
+
 
 
 
@@ -572,5 +577,26 @@ class EntityResolver:
             symbol=symbol,
             limit=limit
         )
+
+    async def get_supporting_publications(self, query: str, limit: int = 5) -> LiteratureContext:
+        """Fetch authoritative supporting scientific publications for a gene, disease, or biomedical query."""
+        clean_q = query.strip()
+        if not clean_q:
+            return LiteratureContext(query=query, total_hits=0, publications=[])
+
+        # If query is a gene, try resolving to approved symbol to enrich query
+        resolved_sym = None
+        if not clean_q.isdigit() and not clean_q.upper().startswith("PMC") and not clean_q.startswith("10."):
+            res = await self.resolve(clean_q)
+            if res and res.resolved_entity:
+                resolved_sym = res.resolved_entity.symbol
+
+        search_term = resolved_sym or clean_q
+        return await self.literature.search_publications(query=search_term, limit=limit)
+
+    async def get_publication_details(self, identifier: str) -> Optional[PublicationEntity]:
+        """Fetch detailed publication metadata by PMID, PMCID, or DOI."""
+        return await self.literature.fetch_by_id(identifier)
+
 
 

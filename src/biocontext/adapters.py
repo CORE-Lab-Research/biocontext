@@ -21,6 +21,8 @@ from biocontext.schemas import (
     PathwayContext,
     PathwayEntity,
     ProteinEntity,
+    PublicationEntity,
+    LiteratureContext,
     TargetAssociationContext,
     TargetDiseaseAssociation,
     TranscriptEntity,
@@ -1460,6 +1462,172 @@ class OpenTargetsAdapter(BaseBioAdapter):
 
         self.cache.set("opentargets", cache_key, context.model_dump())
         return context
+
+
+class LiteratureAdapter(BaseBioAdapter):
+    """Adapter for scientific publications via Europe PMC REST API.
+    Provides authoritative citation metadata, PMID/PMCID/DOI cross-mapping,
+    and open-access abstracts for biological and clinical research.
+    """
+
+    BASE_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="EuropePMC", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.EUROPEPMC_RPS)
+
+    async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
+        """Literature adapter queries publications rather than gene symbol models."""
+        return None
+
+    def _parse_publication(self, item: Dict[str, Any]) -> PublicationEntity:
+        """Parse Europe PMC raw result item into PublicationEntity."""
+        pmid = item.get("pmid") or item.get("id")
+        pmcid = item.get("pmcid")
+        doi = item.get("doi")
+        title = item.get("title", "").strip().rstrip(".")
+        
+        # Author parsing
+        author_string = item.get("authorString", "")
+        authors = [a.strip() for a in author_string.split(",") if a.strip()] if author_string else []
+
+        journal_title = item.get("journalTitle")
+        pub_year = None
+        if "pubYear" in item and item["pubYear"]:
+            try:
+                pub_year = int(item["pubYear"])
+            except (ValueError, TypeError):
+                pass
+
+        abstract = item.get("abstractText")
+        cited_by = None
+        if "citedByCount" in item and item["citedByCount"] is not None:
+            try:
+                cited_by = int(item["citedByCount"])
+            except (ValueError, TypeError):
+                pass
+
+        url = f"https://europepmc.org/article/MED/{pmid}" if pmid else (
+            f"https://doi.org/{doi}" if doi else None
+        )
+
+        return PublicationEntity(
+            pmid=str(pmid) if pmid else None,
+            pmcid=str(pmcid) if pmcid else None,
+            doi=str(doi) if doi else None,
+            title=title or "Untitled Publication",
+            authors=authors,
+            journal=journal_title,
+            pub_year=pub_year,
+            abstract_text=abstract,
+            cited_by_count=cited_by,
+            url=url
+        )
+
+    async def fetch_by_id(self, identifier: str) -> Optional[PublicationEntity]:
+        """Fetch publication metadata by PMID, PMCID, or DOI."""
+        clean_id = identifier.strip()
+        if not clean_id:
+            return None
+
+        cache_key = f"europepmc:id:{clean_id.lower()}"
+        cached = self.cache.get("europepmc", cache_key)
+        if cached:
+            return PublicationEntity(**cached)
+
+        # Formulate query based on identifier pattern
+        if clean_id.upper().startswith("PMC"):
+            query_str = clean_id.upper()
+        elif clean_id.startswith("10."):
+            query_str = f"DOI:{clean_id}"
+        elif clean_id.isdigit():
+            query_str = f"EXT_ID:{clean_id} AND SRC:MED"
+        else:
+            query_str = f"EXT_ID:{clean_id}"
+
+
+        url = f"{self.BASE_URL}/search"
+        params = {
+            "query": query_str,
+            "format": "json",
+            "pageSize": 1,
+            "resultType": "core"
+        }
+
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.EUROPEPMC_TIMEOUT_SEC) as client:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("Europe PMC id query failed | query=%s status=%d", query_str, resp.status_code)
+                    return None
+                data = resp.json()
+        except Exception as e:
+            logger.warning("Europe PMC id query exception | query=%s error=%s", query_str, str(e))
+            return None
+
+        results = data.get("resultList", {}).get("result", [])
+        if not results:
+            return None
+
+        pub = self._parse_publication(results[0])
+        self.cache.set("europepmc", cache_key, pub.model_dump())
+        return pub
+
+    async def search_publications(self, query: str, limit: int = 5) -> LiteratureContext:
+        """Search Europe PMC publications supporting an entity query."""
+        clean_query = query.strip()
+        if not clean_query:
+            return LiteratureContext(query=query, total_hits=0, publications=[])
+
+        cache_key = f"europepmc:search:{clean_query.lower()}:{limit}"
+        cached = self.cache.get("europepmc", cache_key)
+        if cached:
+            return LiteratureContext(**cached)
+
+        # Enrich biological search query (prefer peer-reviewed MEDLINE citations)
+        if clean_query.isdigit():
+            formatted_query = f"EXT_ID:{clean_query} AND SRC:MED"
+        else:
+            formatted_query = f"({clean_query}) AND (SRC:MED OR SRC:PMC)"
+
+        url = f"{self.BASE_URL}/search"
+        params = {
+            "query": formatted_query,
+            "format": "json",
+            "pageSize": limit,
+            "resultType": "core",
+            "sort": "CITED desc"
+        }
+
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.EUROPEPMC_TIMEOUT_SEC) as client:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("Europe PMC search failed | query=%s status=%d", formatted_query, resp.status_code)
+                    return LiteratureContext(query=clean_query, total_hits=0, publications=[])
+                data = resp.json()
+        except Exception as e:
+            logger.warning("Europe PMC search exception | query=%s error=%s", formatted_query, str(e))
+            return LiteratureContext(query=clean_query, total_hits=0, publications=[])
+
+        total_count = int(data.get("hitCount", 0))
+        raw_items = data.get("resultList", {}).get("result", [])
+        publications = [self._parse_publication(item) for item in raw_items]
+
+        context = LiteratureContext(
+            query=clean_query,
+            source="Europe PMC",
+            total_hits=total_count,
+            publications=publications
+        )
+
+        self.cache.set("europepmc", cache_key, context.model_dump())
+        return context
+
 
 
 

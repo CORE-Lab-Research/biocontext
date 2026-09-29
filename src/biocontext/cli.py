@@ -222,6 +222,19 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(context.model_dump_json(indent=2))
         return 0
 
+    elif args.command == "literature":
+        context = await resolver.get_supporting_publications(query=args.query, limit=args.limit)
+        print(context.model_dump_json(indent=2))
+        return 0
+
+    elif args.command == "paper":
+        pub = await resolver.get_publication_details(identifier=args.identifier)
+        if not pub:
+            print(json.dumps({"status": "not_found", "identifier": args.identifier}, indent=2))
+            return 1
+        print(pub.model_dump_json(indent=2))
+        return 0
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -256,7 +269,8 @@ def main():
         sys.exit(pytest.main(["tests/", "-v"]))
     elif args.command in (
         "resolve", "batch", "protein", "transcripts", "ortholog", "mouse",
-        "annotate", "go", "pathway", "pathway-info", "disease", "targets", "cache"
+        "annotate", "go", "pathway", "pathway-info", "disease", "targets",
+        "literature", "paper", "cache"
     ):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:
