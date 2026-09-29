@@ -159,3 +159,30 @@ class BatchResolutionSummary(BaseModel):
     success_rate: float = Field(..., ge=0.0, le=1.0, description="Proportion of successfully resolved queries")
     execution_time_seconds: float = Field(..., description="Elapsed wall-clock processing time")
     results: List[ResolutionResult] = Field(default_factory=list, description="List of resolution results for each query")
+
+
+class DiseaseEntity(BaseModel):
+    """Standardized representation of a disease entity based on MONDO and cross-references."""
+    mondo_id: str = Field(..., description="Canonical MONDO disease identifier (e.g. 'MONDO:0018875')")
+    name: str = Field(..., description="Standard disease preferred label / name (e.g. 'Li-Fraumeni syndrome')")
+    description: Optional[str] = Field(None, description="Clinical definition or description of the disease")
+    synonyms: List[str] = Field(default_factory=list, description="Alternative names, acronyms, and synonyms")
+    cross_references: List[str] = Field(default_factory=list, description="External cross-references (OMIM, DOID, Orphanet, UMLS, MeSH)")
+
+
+class TargetDiseaseAssociation(BaseModel):
+    """Evidence-backed association between a therapeutic target (gene) and a disease from Open Targets."""
+    disease_id: str = Field(..., description="Disease identifier (e.g. MONDO or EFO ID)")
+    disease_name: str = Field(..., description="Preferred name of the disease")
+    score: float = Field(..., ge=0.0, le=1.0, description="Overall aggregate association evidence score (0.0 - 1.0)")
+    datatype_scores: Optional[Dict[str, float]] = Field(default=None, description="Breakdown scores by evidence data type (genetic, somatic, literature, animal)")
+
+
+class TargetAssociationContext(BaseModel):
+    """Profile of diseases associated with a target gene."""
+    query: str = Field(..., description="Input gene symbol or target identifier")
+    ensembl_gene_id: Optional[str] = Field(None, description="Ensembl gene ID used for Open Targets association")
+    symbol: Optional[str] = Field(None, description="Approved gene symbol")
+    total_associations: int = Field(0, description="Total number of associated diseases found")
+    associations: List[TargetDiseaseAssociation] = Field(default_factory=list, description="Top ranked disease associations")
+

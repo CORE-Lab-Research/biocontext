@@ -38,6 +38,11 @@ class RateLimitConfig:
     QUICKGO_TIMEOUT_SEC: float = 15.0
     REACTOME_RPS: float = 5.0
     REACTOME_TIMEOUT_SEC: float = 15.0
+    MONDO_RPS: float = 10.0
+    MONDO_TIMEOUT_SEC: float = 15.0
+    OPENTARGETS_RPS: float = 10.0
+    OPENTARGETS_TIMEOUT_SEC: float = 15.0
+
 
 
 
@@ -156,6 +161,22 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
         "help": "Fetch detailed pathway information by Reactome stable ID",
         "arguments": [
             {"flags": ["st_id"], "help": "Reactome stable ID (e.g. R-HSA-5357801)"}
+        ]
+    },
+    {
+        "name": "disease",
+        "help": "Resolve disease name, synonym, or ID against MONDO Disease Ontology",
+        "arguments": [
+            {"flags": ["query"], "help": "Disease name (e.g. 'Li-Fraumeni syndrome') or MONDO ID ('MONDO:0018875')"},
+            {"flags": ["--limit"], "type": int, "default": 5, "help": "Maximum matches to return (default: 5)"}
+        ]
+    },
+    {
+        "name": "targets",
+        "help": "Fetch evidence-backed target-disease associations from Open Targets Platform",
+        "arguments": [
+            {"flags": ["gene"], "help": "Gene symbol (e.g. TP53) or Ensembl Gene ID"},
+            {"flags": ["--limit"], "type": int, "default": 10, "help": "Maximum associations to return (default: 10)"}
         ]
     },
 

@@ -1,10 +1,15 @@
-from typing import List, Optional
+import asyncio
+import time
+from typing import Any, Dict, List, Optional
+
 from biocontext.adapters import (
     EnsemblAdapter,
     GeneOntologyAdapter,
     HGNCAdapter,
     MGIAdapter,
+    MondoAdapter,
     NCBIAdapter,
+    OpenTargetsAdapter,
     ReactomeAdapter,
     UniProtAdapter,
 )
@@ -13,6 +18,7 @@ from biocontext.config import ScoringConfig
 from biocontext.logging import get_logger
 from biocontext.schemas import (
     BatchResolutionSummary,
+    DiseaseEntity,
     FunctionalAnnotation,
     GOAnnotation,
     MatchReason,
@@ -20,6 +26,8 @@ from biocontext.schemas import (
     PathwayEntity,
     ResolutionContext,
     ResolutionResult,
+    TargetAssociationContext,
+    TargetDiseaseAssociation,
 )
 
 logger = get_logger("resolver")
@@ -43,6 +51,9 @@ class EntityResolver:
         self.mgi = MGIAdapter(cache=self.cache, email=email)
         self.go = GeneOntologyAdapter(cache=self.cache, email=email)
         self.reactome = ReactomeAdapter(cache=self.cache, email=email)
+        self.mondo = MondoAdapter(cache=self.cache, email=email)
+        self.opentargets = OpenTargetsAdapter(cache=self.cache, email=email)
+
 
 
 
@@ -520,4 +531,46 @@ class EntityResolver:
             execution_time_seconds=round(elapsed, 3),
             results=results
         )
+
+    async def resolve_disease(self, query: str, limit: int = 5) -> List[DiseaseEntity]:
+        """Resolve a disease name, synonym, or keyword against MONDO Disease Ontology."""
+        clean_q = query.strip()
+        if not clean_q:
+            return []
+
+        # If query is direct MONDO identifier e.g. MONDO:0018875
+        if clean_q.upper().startswith("MONDO:") or clean_q.upper().startswith("MONDO_"):
+            entity = await self.mondo.fetch_by_id(clean_q)
+            return [entity] if entity else []
+
+        return await self.mondo.search_disease(clean_q, limit=limit)
+
+    async def get_target_diseases(self, gene_query: str, limit: int = 10) -> Optional[TargetAssociationContext]:
+        """Retrieve evidence-backed disease associations for a target gene from Open Targets."""
+        clean_q = gene_query.strip()
+        if not clean_q:
+            return None
+
+        ensembl_id = None
+        symbol = None
+
+        if clean_q.upper().startswith("ENSG"):
+            ensembl_id = clean_q.upper()
+        else:
+            # Resolve gene entity to acquire authoritative Ensembl Gene ID
+            res = await self.resolve(clean_q)
+            if res and res.resolved_entity:
+                ensembl_id = res.resolved_entity.ensembl_gene_id
+                symbol = res.resolved_entity.symbol
+
+        if not ensembl_id:
+            logger.warning("Could not map gene query '%s' to an Ensembl Gene ID for Open Targets", clean_q)
+            return None
+
+        return await self.opentargets.fetch_target_diseases(
+            ensembl_gene_id=ensembl_id,
+            symbol=symbol,
+            limit=limit
+        )
+
 

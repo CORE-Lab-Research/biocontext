@@ -11,6 +11,7 @@ from biocontext.base import AsyncRateLimiter, BaseBioAdapter, SQLiteCache
 from biocontext.config import ClientConfig, RateLimitConfig
 from biocontext.logging import get_logger
 from biocontext.schemas import (
+    DiseaseEntity,
     ExonEntity,
     FunctionalAnnotation,
     GOAnnotation,
@@ -20,6 +21,8 @@ from biocontext.schemas import (
     PathwayContext,
     PathwayEntity,
     ProteinEntity,
+    TargetAssociationContext,
+    TargetDiseaseAssociation,
     TranscriptEntity,
 )
 
@@ -1209,6 +1212,255 @@ class ReactomeAdapter(BaseBioAdapter):
 
         self.cache.set("reactome", cache_key, details)
         return details
+
+
+class MondoAdapter(BaseBioAdapter):
+    """Adapter for MONDO Disease Ontology via EBI OLS4 API.
+    Primary authority for canonical disease identifiers (MONDO:xxxxxxx), preferred names,
+    synonyms, and cross-references (OMIM, Orphanet, DOID, UMLS).
+    """
+
+    BASE_URL = "https://www.ebi.ac.uk/ols4/api"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="MONDO", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.MONDO_RPS)
+
+    async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
+        """MONDO resolves disease entities rather than genes."""
+        return None
+
+    async def fetch_by_id(self, mondo_id: str) -> Optional[DiseaseEntity]:
+        """Fetch canonical disease entity by MONDO ID (e.g. 'MONDO:0018875' or 'MONDO_0018875')."""
+        clean_id = mondo_id.strip()
+        if clean_id.startswith("MONDO:"):
+            iri_id = clean_id.replace(":", "_")
+        elif clean_id.startswith("MONDO_"):
+            iri_id = clean_id
+            clean_id = clean_id.replace("_", ":")
+        else:
+            return None
+
+        cache_key = f"mondo:id:{clean_id.upper()}"
+        cached = self.cache.get("mondo", cache_key)
+        if cached:
+            return DiseaseEntity(**cached)
+
+        iri = f"http://purl.obolibrary.org/obo/{iri_id}"
+        url = f"{self.BASE_URL}/ontologies/mondo/terms"
+        params = {"iri": iri}
+
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.MONDO_TIMEOUT_SEC) as client:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    return None
+                data = resp.json()
+        except Exception as e:
+            logger.warning("Mondo term lookup exception | id=%s error=%s", clean_id, str(e))
+            return None
+
+        terms = data.get("_embedded", {}).get("terms", [])
+        if not terms:
+            return None
+
+        term = terms[0]
+        name = term.get("label") or clean_id
+        descriptions = term.get("description", [])
+        desc = descriptions[0] if descriptions else None
+        synonyms = term.get("synonyms") or []
+        
+        # Cross references / dbxrefs
+        xrefs = []
+        annotation = term.get("annotation", {})
+        dbxrefs = annotation.get("database_cross_reference", [])
+        if isinstance(dbxrefs, list):
+            xrefs = [str(x) for x in dbxrefs]
+
+        disease = DiseaseEntity(
+            mondo_id=clean_id,
+            name=name,
+            description=desc,
+            synonyms=synonyms,
+            cross_references=xrefs
+        )
+        self.cache.set("mondo", cache_key, disease.model_dump())
+        return disease
+
+    async def search_disease(self, query: str, limit: int = 5) -> List[DiseaseEntity]:
+        """Search diseases by name, synonym, or keyword within MONDO."""
+        clean_query = query.strip()
+        if not clean_query:
+            return []
+
+        cache_key = f"mondo:search:{clean_query.lower()}:{limit}"
+        cached = self.cache.get("mondo", cache_key)
+        if cached and "items" in cached:
+            return [DiseaseEntity(**item) for item in cached["items"]]
+
+        url = f"{self.BASE_URL}/search"
+        params = {
+            "q": clean_query,
+            "ontology": "mondo",
+            "rows": limit,
+            "queryFields": "label,synonym"
+        }
+
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.MONDO_TIMEOUT_SEC) as client:
+                resp = await client.get(url, params=params, headers=self.headers)
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+        except Exception as e:
+            logger.warning("Mondo search exception | query=%s error=%s", clean_query, str(e))
+            return []
+
+        docs = data.get("response", {}).get("docs", [])
+        results: List[DiseaseEntity] = []
+        for doc in docs:
+            short_form = doc.get("short_form", "")
+            if not short_form.startswith("MONDO_") and not short_form.startswith("MONDO:"):
+                continue
+            mondo_id = short_form.replace("_", ":")
+            name = doc.get("label") or mondo_id
+            descriptions = doc.get("description", [])
+            desc = descriptions[0] if descriptions else None
+            synonyms = doc.get("synonym", []) or []
+
+            results.append(DiseaseEntity(
+                mondo_id=mondo_id,
+                name=name,
+                description=desc,
+                synonyms=synonyms,
+                cross_references=[]
+            ))
+
+        self.cache.set("mondo", cache_key, {"items": [r.model_dump() for r in results]})
+        return results
+
+
+class OpenTargetsAdapter(BaseBioAdapter):
+    """Adapter for Open Targets Platform GraphQL API.
+    Primary authority for target-disease association scores, clinical pipeline evidence,
+    and genetic target tractability.
+    """
+
+    GRAPHQL_URL = "https://api.platform.opentargets.org/api/v4/graphql"
+
+    def __init__(self, cache: Optional[SQLiteCache] = None, email: Optional[str] = None):
+        super().__init__(name="OpenTargets", cache=cache)
+        self.email = ClientConfig.get_email(email)
+        self.headers = ClientConfig.get_headers(self.email)
+        self.headers["Content-Type"] = "application/json"
+        self.rate_limiter = AsyncRateLimiter(requests_per_second=RateLimitConfig.OPENTARGETS_RPS)
+
+    async def resolve_gene(self, query: str, taxon_id: int = 9606) -> Optional[Dict[str, Any]]:
+        """OpenTargets is queried via resolved Ensembl ID rather than as a primary gene symbol resolver."""
+        return None
+
+    async def fetch_target_diseases(
+        self,
+        ensembl_gene_id: str,
+        symbol: Optional[str] = None,
+        limit: int = 10
+    ) -> TargetAssociationContext:
+        """Fetch top disease associations for a target gene by Ensembl Gene ID."""
+        clean_id = ensembl_gene_id.strip().upper()
+        cache_key = f"opentargets:target:{clean_id}:{limit}"
+        cached = self.cache.get("opentargets", cache_key)
+        if cached:
+            return TargetAssociationContext(**cached)
+
+        query = """
+        query TargetDiseases($ensemblId: String!, $size: Int!) {
+          target(ensemblId: $ensemblId) {
+            id
+            approvedSymbol
+            approvedName
+            associatedDiseases(page: {size: $size, index: 0}) {
+              count
+              rows {
+                score
+                datatypeScores {
+                  id
+                  score
+                }
+                disease {
+                  id
+                  name
+                }
+              }
+            }
+          }
+        }
+        """
+
+        payload = {
+            "query": query,
+            "variables": {
+                "ensemblId": clean_id,
+                "size": limit
+            }
+        }
+
+        await self.rate_limiter.acquire()
+        try:
+            async with httpx.AsyncClient(timeout=RateLimitConfig.OPENTARGETS_TIMEOUT_SEC) as client:
+                resp = await client.post(self.GRAPHQL_URL, json=payload, headers=self.headers)
+                if resp.status_code != 200:
+                    logger.warning("OpenTargets GraphQL error | status=%d body=%s", resp.status_code, resp.text[:200])
+                    return TargetAssociationContext(query=clean_id, ensembl_gene_id=clean_id, symbol=symbol)
+                res_data = resp.json()
+        except Exception as e:
+            logger.warning("OpenTargets request exception | target=%s error=%s", clean_id, str(e))
+            return TargetAssociationContext(query=clean_id, ensembl_gene_id=clean_id, symbol=symbol)
+
+        target_data = res_data.get("data", {}).get("target")
+        if not target_data:
+            return TargetAssociationContext(query=clean_id, ensembl_gene_id=clean_id, symbol=symbol)
+
+        approved_symbol = target_data.get("approvedSymbol") or symbol
+        assoc_block = target_data.get("associatedDiseases", {})
+        total_count = assoc_block.get("count", 0)
+        rows = assoc_block.get("rows", [])
+
+        associations: List[TargetDiseaseAssociation] = []
+        for r in rows:
+            disease_info = r.get("disease", {})
+            d_id = disease_info.get("id", "")
+            d_name = disease_info.get("name", d_id)
+            score = float(r.get("score", 0.0))
+
+            dt_scores_dict: Dict[str, float] = {}
+            for dt in r.get("datatypeScores", []):
+                dt_id = dt.get("id")
+                dt_val = dt.get("score")
+                if dt_id and dt_val is not None:
+                    dt_scores_dict[dt_id] = float(dt_val)
+
+            associations.append(TargetDiseaseAssociation(
+                disease_id=d_id.replace("_", ":") if d_id.startswith("MONDO_") else d_id,
+                disease_name=d_name,
+                score=round(score, 4),
+                datatype_scores=dt_scores_dict if dt_scores_dict else None
+            ))
+
+        context = TargetAssociationContext(
+            query=clean_id,
+            ensembl_gene_id=clean_id,
+            symbol=approved_symbol,
+            total_associations=total_count,
+            associations=associations
+        )
+
+        self.cache.set("opentargets", cache_key, context.model_dump())
+        return context
+
 
 
 

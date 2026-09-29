@@ -239,6 +239,40 @@ async def get_pathway_details(st_id: str) -> str:
     return json.dumps(details, indent=2)
 
 
+@mcp.tool()
+async def resolve_disease(query: str, limit: int = 5) -> str:
+    """Resolve a disease name, synonym, or MONDO identifier against the MONDO Disease Ontology.
+
+    Args:
+        query: Disease name (e.g. 'Li-Fraumeni syndrome', 'Breast cancer'), synonym, or ID ('MONDO:0018875').
+        limit: Maximum number of matches to return (default: 5).
+
+    Returns:
+        JSON string containing the list of resolved disease entities with MONDO IDs, definitions, and cross-references.
+    """
+    diseases = await resolver.resolve_disease(query=query, limit=limit)
+    import json
+    return json.dumps([d.model_dump() for d in diseases], indent=2)
+
+
+@mcp.tool()
+async def get_target_diseases(gene: str, limit: int = 10) -> str:
+    """Fetch evidence-backed therapeutic target-disease associations from Open Targets Platform.
+
+    Args:
+        gene: Gene symbol (e.g. 'TP53', 'BRAF', 'EGFR') or Ensembl Gene ID ('ENSG00000141510').
+        limit: Maximum number of top disease associations to return (default: 10).
+
+    Returns:
+        JSON string containing associated diseases, evidence scores (0.0-1.0), and datatype evidence breakdowns.
+    """
+    context = await resolver.get_target_diseases(gene_query=gene, limit=limit)
+    if not context:
+        return '{"status": "not_found", "gene": "%s"}' % gene
+
+    return context.model_dump_json(indent=2)
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")
