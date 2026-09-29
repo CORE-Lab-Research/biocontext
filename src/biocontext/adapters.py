@@ -512,6 +512,13 @@ class NCBIAdapter(BaseBioAdapter):
 class EnsemblAdapter(BaseBioAdapter):
     """Adapter for Ensembl REST API (v15+).
     Primary authority for genomic coordinates, gene models, canonical transcripts, and isoforms.
+
+    Note on Protocol Architecture:
+        Full migration to Ensembl Beta GraphQL (beta.ensembl.org/graphql) was evaluated for v0.5.1
+        (Issue #4). However, Ensembl's beta GraphQL schema currently lacks cross-species homology/ortholog
+        resolvers and remains experimental. BioContext therefore maintains the production REST interface
+        with an adaptive multi-tier fallback pipeline (intraservice fallback from /homology/id to
+        /homology/symbol and from expand=1 to expand=0) combined with exponential backoff on HTTP 500/503.
     """
 
     BASE_URL = "https://rest.ensembl.org"
