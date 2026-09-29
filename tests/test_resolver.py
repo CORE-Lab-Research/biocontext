@@ -90,7 +90,6 @@ async def test_disambiguation_with_mismatching_chromosome(resolver):
     assert "chromosome_mismatch" in rules
 
 
-@pytest.mark.skip(reason="Ensembl REST API degraded post-e116 release; tracked in GitHub Issue #4")
 @pytest.mark.asyncio
 async def test_ensembl_id_resolution(resolver):
     # ENSG00000141510 is Ensembl ID for TP53
@@ -105,7 +104,6 @@ async def test_ensembl_id_resolution(resolver):
     assert len(result.resolved_entity.transcripts) > 0
 
 
-@pytest.mark.skip(reason="Ensembl REST API degraded post-e116 release; tracked in GitHub Issue #4")
 @pytest.mark.asyncio
 async def test_ensembl_transcripts_retrieval(resolver):
     gene = await resolver.ensembl.fetch_by_symbol(species="homo_sapiens", symbol="TP53")
@@ -121,7 +119,6 @@ async def test_ensembl_transcripts_retrieval(resolver):
     assert len(canon.exons) > 0
 
 
-@pytest.mark.skip(reason="Ensembl REST API degraded post-e116 release; tracked in GitHub Issue #4")
 @pytest.mark.asyncio
 async def test_ensembl_ortholog_retrieval(resolver):
     # Test human TP53 (ENSG00000141510) -> mouse ortholog (Trp53 / ENSMUSG00000059552)

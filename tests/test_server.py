@@ -39,7 +39,6 @@ async def test_mcp_tool_batch_resolve():
     assert "ERBB2" in symbols
 
 
-@pytest.mark.skip(reason="Ensembl REST API degraded post-e116 release; tracked in GitHub Issue #4")
 @pytest.mark.asyncio
 async def test_mcp_tool_get_transcripts():
     res_str = await get_transcripts("TP53")
@@ -49,7 +48,6 @@ async def test_mcp_tool_get_transcripts():
     assert len(res["transcripts"]) > 0
 
 
-@pytest.mark.skip(reason="Ensembl REST API degraded post-e116 release; tracked in GitHub Issue #4")
 @pytest.mark.asyncio
 async def test_mcp_tool_find_orthologs():
     res_str = await find_orthologs("TP53", target_species="mus_musculus")
