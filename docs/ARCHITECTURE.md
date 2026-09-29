@@ -65,6 +65,13 @@ Implements hierarchical lookup rules with protein-coding gene prioritization:
 - SQLite key-value store with configurable Time-To-Live (TTL).
 - Caches raw responses and parsed models to eliminate redundant network roundtrips and protect upstream public bioinformatics APIs from rate-limiting.
 
+### D. Ensembl Adapter Resilience & Protocol Strategy (`adapters.py`)
+- **Protocol Evaluation (GraphQL vs REST)**: Full migration to Ensembl Beta GraphQL (`beta.ensembl.org/graphql`) was investigated during the v0.5.1 stabilization cycle (Issue #4). Because Ensembl's beta GraphQL schema currently lacks cross-species homology/ortholog resolvers and remains in active development, BioContext maintains the production REST interface.
+- **Intraservice Fallback Pipeline**: To safeguard against intermittent Ensembl server errors (HTTP 500/503) post-e116 release, the adapter implements automatic path degradation:
+  1. `/homology/id/` failures degrade seamlessly to `/homology/symbol/{species}/{symbol}`.
+  2. Heavy transcript lookups with `expand=1` fallback to `expand=0` and recover full isoform hierarchies via symbol enrichment.
+  3. Exponential backoff and token-bucket rate limiting guarantee zero-crash execution across high-concurrency workloads.
+
 ---
 
 ## 3. Scientific Integrity & Anti-Hallucination Design

@@ -31,7 +31,7 @@ class RateLimitConfig:
     HGNC_TIMEOUT_SEC: float = 10.0
     UNIPROT_TIMEOUT_SEC: float = 10.0
     ENSEMBL_RPS: float = 14.0  # Ensembl allows up to 15 req/sec
-    ENSEMBL_TIMEOUT_SEC: float = 15.0
+    ENSEMBL_TIMEOUT_SEC: float = 25.0
     MGI_RPS: float = 5.0
     MGI_TIMEOUT_SEC: float = 15.0
     QUICKGO_RPS: float = 10.0
