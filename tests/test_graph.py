@@ -116,7 +116,8 @@ async def test_knowledge_graph_builder_tp53():
     for n in subgraph.nodes:
         if n.provenance:
             assert n.provenance.source_database is not None
-            assert 0.0 <= n.provenance.confidence <= 1.0
+            if n.provenance.confidence is not None:
+                assert 0.0 <= n.provenance.confidence <= 1.0
 
 
 @pytest.mark.asyncio
@@ -146,12 +147,17 @@ async def test_traversal_engine_find_paths():
     result = await engine.traverse(
         source_query="TP53",
         target_query="cancer",
+        target_type=NodeType.DISEASE,
         max_hops=3,
     )
 
     assert result.source_query == "TP53"
     assert result.target_query == "cancer"
+    assert result.target_type == NodeType.DISEASE
     assert result.total_paths >= 1
+    assert len(result.matched_targets) >= 1
+    for m in result.matched_targets:
+        assert m.startswith("disease:")
     top_path = result.paths_found[0]
     assert top_path.start_node_id == "gene:TP53"
     assert top_path.hop_count >= 1
@@ -166,10 +172,13 @@ async def test_mcp_tool_traverse_biological_graph():
 
     res_json = await traverse_biological_graph(
         source_query="TP53",
-        target_query="PUMA",
+        target_query="cancer",
+        target_type="disease",
         max_hops=3,
     )
     data = json.loads(res_json)
     assert data["source_query"] == "TP53"
     assert "paths_found" in data
+    assert "matched_targets" in data
+    assert "warnings" in data
 

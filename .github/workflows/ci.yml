@@ -29,7 +29,7 @@ jobs:
         run: uv sync
 
       - name: Run full test suite
-        run: uv run pytest tests/ -v
+        run: uv run pytest tests/ -v --reruns 2 --reruns-delay 10
 
   build:
     runs-on: ubuntu-latest

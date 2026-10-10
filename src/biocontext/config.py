@@ -77,7 +77,8 @@ class ClientConfig:
 # Allows auditing and extending CLI commands without modifying parsing loops
 CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
     {
-        "name": "server",
+        "name": "serve",
+        "aliases": ["server"],
         "help": "Run the Model Context Protocol (MCP) stdio server for AI agents",
         "arguments": []
     },
@@ -216,7 +217,8 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["source"], "help": "Source entity (e.g. TP53, BRCA1)"},
             {"flags": ["target"], "help": "Target entity or keyword (e.g. cancer, apoptosis)"},
             {"flags": ["--max-hops"], "type": int, "default": 3, "help": "Max hops (default: 3)"},
-            {"flags": ["--min-score"], "type": float, "default": 0.0, "help": "Minimum cumulative score (default: 0.0)"}
+            {"flags": ["--min-score"], "type": float, "default": 0.0, "help": "Minimum product of source-provided scores, 0.0-1.0 (default: 0.0)"},
+            {"flags": ["--target-type"], "default": None, "choices": ["gene", "protein", "transcript", "pathway", "disease", "publication", "go_term"], "help": "Restrict target matches to one node type"}
         ]
     },
     {
@@ -224,7 +226,8 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
         "help": "Start standalone BioContext REST API v1 HTTP server (PRD-18)",
         "arguments": [
             {"flags": ["--host"], "default": "127.0.0.1", "help": "Host address (default: 127.0.0.1)"},
-            {"flags": ["--port"], "type": int, "default": 8000, "help": "Port number (default: 8000)"}
+            {"flags": ["--port"], "type": int, "default": 8000, "help": "Port number (default: 8000)"},
+            {"flags": ["--cors-origin"], "default": None, "help": "Value for Access-Control-Allow-Origin (default: header not sent)"}
         ]
     },
 

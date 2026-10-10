@@ -3,7 +3,7 @@
 from typing import List, Optional
 
 from biocontext.graph.builder import KnowledgeGraphBuilder
-from biocontext.graph.models import SubGraphContext, TraversalResult
+from biocontext.graph.models import NodeType, SubGraphContext, TraversalResult
 from biocontext.graph.traversal import TraversalEngine
 from biocontext.resolver import EntityResolver
 from biocontext.schemas import (
@@ -143,13 +143,19 @@ class BioContext:
         target_query: str,
         max_hops: int = 3,
         min_score: float = 0.0,
+        target_type: Optional[NodeType] = None,
     ) -> TraversalResult:
-        """Perform deterministic multi-hop reasoning between entities (PRD-22)."""
+        """Enumerate graph paths from a source gene to matching entities (PRD-22).
+
+        Pass target_type (e.g. NodeType.DISEASE) to restrict matches; publications
+        are only matched when target_type is NodeType.PUBLICATION.
+        """
         return await self.traversal_engine.traverse(
             source_query=source_query,
             target_query=target_query,
             max_hops=max_hops,
             min_score=min_score,
+            target_type=target_type,
         )
 
 
@@ -157,6 +163,7 @@ __all__ = [
     "BioContext",
     "EntityResolver",
     "GeneEntity",
+    "NodeType",
     "ProteinEntity",
     "ResolutionResult",
     "FunctionalAnnotation",

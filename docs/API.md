@@ -151,26 +151,53 @@ asyncio.run(main())
 | `literature` | `biocontext literature <query> [-l INT]` | Search supporting peer-reviewed publications from Europe PMC / PubMed. |
 | `paper` | `biocontext paper <identifier>` | Fetch detailed paper metadata and abstract by PMID, PMCID, or DOI. |
 | `graph` | `biocontext graph <query> [--taxon INT]` | Construct connected biological Knowledge Subgraph (PRD-21). |
-| `traverse` | `biocontext traverse <source> <target> [--max-hops INT]` | Find and explain deterministic multi-hop reasoning paths (PRD-22). |
-| `api` | `biocontext api [--host HOST] [--port PORT]` | Start standalone BioContext REST API v1 server (PRD-18). |
+| `traverse` | `biocontext traverse <source> <target> [--target-type TYPE] [--max-hops INT] [--min-score FLOAT]` | Find and explain deterministic multi-hop reasoning paths (PRD-22). |
+| `api` | `biocontext api [--host HOST] [--port PORT] [--cors-origin ORIGIN]` | Start standalone BioContext REST API v1 server (PRD-18). |
 | `mouse` | `biocontext mouse <MGI_ID>` | Lookup mouse gene model via MGI. |
 | `cache` | `biocontext cache [stats|clear]` | Inspect or clear SQLite cache. |
-| `serve` | `biocontext serve` | Start stdio MCP server for AI clients. |
+| `serve` | `biocontext serve` (alias `server`) | Start stdio MCP server for AI clients. |
 
 ---
 
 ## 5. REST API v1 Endpoints Reference
 
-Start the server using: `biocontext api --port 8000`
+Start the server using: `biocontext api --port 8000 [--cors-origin "http://localhost:3000"]`
 
 | Method | Endpoint | Description | Example |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/health` | Service health status and version info | `curl http://127.0.0.1:8000/health` |
 | `GET` | `/v1/gene/{symbol}` | Resolve gene symbol to canonical entity | `curl http://127.0.0.1:8000/v1/gene/TP53` |
 | `GET` | `/v1/protein/{accession}` | Fetch UniProt protein model | `curl http://127.0.0.1:8000/v1/protein/P04637` |
-| `GET` | `/v1/disease/{query}` | Search MONDO disease ontology | `curl http://127.0.0.1:8000/v1/disease/cancer` |
+| `GET` | `/v1/disease/{query}?limit=5` | Search MONDO disease ontology (limit 1-25) | `curl "http://127.0.0.1:8000/v1/disease/cancer?limit=5"` |
 | `GET` | `/v1/graph/{symbol}` | Construct interconnected Knowledge Subgraph | `curl http://127.0.0.1:8000/v1/graph/TP53` |
-| `GET` | `/v1/traverse?source=X&target=Y` | Deterministic multi-hop path reasoning | `curl "http://127.0.0.1:8000/v1/traverse?source=TP53&target=cancer"` |
+| `GET` | `/v1/traverse?source=X&target=Y&target_type=disease` | Deterministic multi-hop path reasoning | `curl "http://127.0.0.1:8000/v1/traverse?source=TP53&target=cancer&target_type=disease&max_hops=3"` |
+
+### Query Parameters for `/v1/traverse`
+- `source` (required, str): Seed gene symbol or query.
+- `target` (required, str): Target name or query.
+- `target_type` (optional, str): Restrict matching target nodes by `NodeType` (`gene`, `protein`, `disease`, `pathway`, `go_term`, `publication`). Defaults to all node types except publications.
+- `max_hops` (optional, int, default `3`, range `1..6`): Maximum allowed edges along the path.
+- `min_score` (optional, float, default `0.0`, range `0.0..1.0`): Filter paths by cumulative score (unscored paths are retained when `min_score == 0.0`).
+
+---
+
+## 6. Graph Semantics & Known Limitations
+
+### Edge Scoring Semantics
+- **Curated / Definitional Edges** (`ENCODES`, `ANNOTATED_WITH`, `PARTICIPATES_IN`) have **no artificial confidence** (`weight=None`, confidence unscored).
+- **Evidence-Based Associations** (`ASSOCIATED_WITH` via Open Targets Platform) retain empirical association weights provided by the source database.
+- **Literature Co-occurrences** (`MENTIONED_IN`) carry `relation_basis="keyword_search_hit"` with unscored weights (`weight=None`).
+- **Cumulative Traversal Score**: Calculated as the product of source-provided edge weights. Unscored edges act as neutral factors. If no edge on a path is scored, the cumulative score is `None`.
+
+### Observability & Gaps
+- `SubGraphContext.layer_status` records the execution status of each subgraph layer (`ok`, `empty`, `skipped: <reason>`, or `failed: <reason>`).
+- `SubGraphContext.warnings` and `TraversalResult.warnings` transparently list any upstream adapter failures or unresolved seeds.
+
+### Documented Limitations
+- **Traversal Direction**: Currently explores outgoing edges from the seed entity.
+- **Seed Types**: Subgraph generation seeds from gene symbols (with protein expansion); arbitrary disease-seeded graph construction is planned for future versions.
+- **Network Dependency**: Live tests rely on upstream biomedical APIs; transient 5xx responses from external services are handled via retry logic.
+
 
 
 

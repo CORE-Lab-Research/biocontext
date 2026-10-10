@@ -125,6 +125,8 @@ class InMemoryGraphStore:
             total_edges=len(collected_edges),
         )
 
+    MAX_ALLOWED_HOPS = 6
+
     def find_paths(
         self,
         start_id: str,
@@ -132,7 +134,15 @@ class InMemoryGraphStore:
         max_hops: int = 3,
         min_cumulative_score: float = 0.0,
     ) -> List[List[GraphEdge]]:
-        """Find deterministic directed paths between start_id and target_id using DFS."""
+        """Find simple directed paths from start_id to target_id using DFS.
+
+        Edges without a source-provided weight (weight is None) are neutral:
+        they do not reduce the running score. Only scored edges are multiplied.
+        """
+        if not 1 <= max_hops <= self.MAX_ALLOWED_HOPS:
+            raise ValueError(f"max_hops must be between 1 and {self.MAX_ALLOWED_HOPS}, got {max_hops}")
+        if not 0.0 <= min_cumulative_score <= 1.0:
+            raise ValueError(f"min_cumulative_score must be between 0.0 and 1.0, got {min_cumulative_score}")
         if start_id not in self._nodes or target_id not in self._nodes:
             return []
 
@@ -149,7 +159,7 @@ class InMemoryGraphStore:
             for edge in self.get_outgoing_edges(current_id):
                 next_id = edge.target_id
                 if next_id not in visited:
-                    next_score = current_score * edge.weight
+                    next_score = current_score * (edge.weight if edge.weight is not None else 1.0)
                     if next_score >= min_cumulative_score:
                         visited.add(next_id)
                         current_path.append(edge)

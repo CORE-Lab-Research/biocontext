@@ -34,7 +34,7 @@ class EdgeType(str, Enum):
 class Provenance(BaseModel):
     """Audit trail and confidence metadata for graph nodes and edges."""
     source_database: str = Field(..., description="Authoritative primary source (e.g. HGNC, UniProt, Reactome, OpenTargets)")
-    confidence: float = Field(1.0, ge=0.0, le=1.0, description="Confidence or association score between 0.0 and 1.0")
+    confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Measured confidence or association score (0.0-1.0). None when the source provides no score.")
     source_id: Optional[str] = Field(None, description="Identifier in source database (e.g. HGNC:11998, R-HSA-5357801)")
     evidence_code: Optional[str] = Field(None, description="Experimental evidence code if applicable (e.g. IDA, IEA)")
 
@@ -53,7 +53,7 @@ class GraphEdge(BaseModel):
     source_id: str = Field(..., description="Source node ID")
     target_id: str = Field(..., description="Target node ID")
     edge_type: EdgeType = Field(..., description="Semantic relationship category")
-    weight: float = Field(1.0, ge=0.0, le=1.0, description="Edge weight / association strength")
+    weight: Optional[float] = Field(None, ge=0.0, le=1.0, description="Association strength from the source database (0.0-1.0). None for curated/structural or unscored relations.")
     provenance: Optional[Provenance] = Field(None, description="Source attribution and evidence")
     properties: Dict[str, Any] = Field(default_factory=dict, description="Edge specific annotations (e.g. mechanism, datatype_scores)")
 
@@ -66,6 +66,8 @@ class SubGraphContext(BaseModel):
     edges: List[GraphEdge] = Field(default_factory=list, description="Relationships connecting nodes in the subgraph")
     total_nodes: int = Field(0, description="Total node count")
     total_edges: int = Field(0, description="Total edge count")
+    layer_status: Dict[str, str] = Field(default_factory=dict, description="Per-layer build status: 'ok', 'empty', 'skipped', or 'failed: <reason>'")
+    warnings: List[str] = Field(default_factory=list, description="Human-readable warnings, e.g. layers that failed or an unresolved seed")
 
 
 class PathStep(BaseModel):
@@ -81,14 +83,18 @@ class TraversalPath(BaseModel):
     target_node_id: str = Field(..., description="Destination entity ID")
     steps: List[PathStep] = Field(default_factory=list, description="Sequence of hops in the path")
     hop_count: int = Field(0, description="Number of edges traversed")
-    cumulative_score: float = Field(1.0, ge=0.0, le=1.0, description="Product of confidence scores along path")
-    human_explanation: str = Field(..., description="Deterministic, zero-hallucination natural language narrative of the biological path")
+    cumulative_score: Optional[float] = Field(None, ge=0.0, le=1.0, description="Product of source-provided edge weights along the path. None if no edge on the path carries a score. Not a probability.")
+    scored_hops: int = Field(0, description="Number of hops that contributed a source-provided score")
+    human_explanation: str = Field(..., description="Template-generated narrative of the path; every statement maps to a graph edge and its source database")
 
 
 class TraversalResult(BaseModel):
     """Result of a multi-hop graph traversal query."""
     source_query: str = Field(..., description="Initial source query or symbol")
     target_query: str = Field(..., description="Initial target query or disease/pathway")
-    paths_found: List[TraversalPath] = Field(default_factory=list, description="Discovered deterministic biological paths")
+    target_type: Optional[NodeType] = Field(None, description="Node type the target was restricted to, if any")
+    paths_found: List[TraversalPath] = Field(default_factory=list, description="Discovered paths between source and matching targets")
     total_paths: int = Field(0, description="Count of valid paths discovered")
+    matched_targets: List[str] = Field(default_factory=list, description="Node IDs that matched the target query")
+    warnings: List[str] = Field(default_factory=list, description="Warnings such as failed graph layers or unresolved seed")
 

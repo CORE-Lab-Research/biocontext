@@ -1,6 +1,6 @@
 [project]
 name = "biocontext-mcp"
-version = "1.0.0"
+version = "1.0.1"
 description = "Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ keywords = [
     "uniprot",
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "License :: OSI Approved :: Apache Software License",
@@ -32,8 +32,13 @@ dependencies = [
     "httpx>=0.28.1",
     "mcp>=2.2.0",
     "pydantic>=2.13.5",
+]
+
+[dependency-groups]
+dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "pytest-rerunfailures>=14.0",
 ]
 
 [project.scripts]

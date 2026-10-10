@@ -33,7 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
             for subcmd in cmd["subcommands"]:
                 nested.add_parser(subcmd["name"], help=subcmd.get("help", ""))
         else:
-            sub = subparsers.add_parser(cmd_name, help=cmd_help)
+            sub = subparsers.add_parser(cmd_name, help=cmd_help, aliases=cmd.get("aliases", []))
             for arg in cmd.get("arguments", []):
                 flags = arg["flags"]
                 kwargs = {k: v for k, v in arg.items() if k != "flags"}
@@ -250,14 +250,20 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         return 0
 
     elif args.command == "traverse":
+        from biocontext.graph.models import NodeType
         from biocontext.graph.traversal import TraversalEngine
         engine = TraversalEngine(resolver=resolver)
-        res = await engine.traverse(
-            source_query=args.source,
-            target_query=args.target,
-            max_hops=args.max_hops,
-            min_score=args.min_score,
-        )
+        try:
+            res = await engine.traverse(
+                source_query=args.source,
+                target_query=args.target,
+                max_hops=args.max_hops,
+                min_score=args.min_score,
+                target_type=NodeType(args.target_type) if args.target_type else None,
+            )
+        except ValueError as e:
+            print(json.dumps({"error": str(e)}, indent=2))
+            return 2
         print(res.model_dump_json(indent=2))
         return 0
 
@@ -285,17 +291,19 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "server":
+    if args.command in ("serve", "server"):
         mcp.run(transport="stdio")
     elif args.command == "api":
         from biocontext.api import run_api_server
-        run_api_server(host=args.host, port=args.port)
-    elif args.command == "bench":
-        import pytest
-        sys.exit(pytest.main(["tests/test_benchmark.py", "-v"]))
-    elif args.command == "test":
-        import pytest
-        sys.exit(pytest.main(["tests/", "-v"]))
+        run_api_server(host=args.host, port=args.port, cors_origin=args.cors_origin)
+    elif args.command in ("bench", "test"):
+        try:
+            import pytest
+        except ImportError:
+            print("pytest is not installed. Install development dependencies (e.g. `uv sync`) to use this command.", file=sys.stderr)
+            sys.exit(2)
+        target = ["tests/test_benchmark.py", "-v"] if args.command == "bench" else ["tests/", "-v"]
+        sys.exit(pytest.main(target))
     elif args.command in (
         "resolve", "batch", "protein", "transcripts", "ortholog", "mouse",
         "annotate", "go", "pathway", "pathway-info", "disease", "targets",

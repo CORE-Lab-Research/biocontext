@@ -1,7 +1,5 @@
-"""Unit and integration tests for the unified Python SDK and REST API v1 (PRD-18)."""
-
 import pytest
-from biocontext import BioContext
+from biocontext import BioContext, NodeType
 from biocontext.api import BioContextAPIHandler
 from http import HTTPStatus
 
@@ -27,7 +25,7 @@ async def test_sdk_client_subgraph_and_traverse():
     assert subgraph.root_node_id == "gene:TP53"
     assert subgraph.total_nodes > 1
 
-    traversal = await bc.traverse("TP53", "cancer", max_hops=2)
+    traversal = await bc.traverse("TP53", "cancer", target_type=NodeType.DISEASE, max_hops=3)
     assert traversal.source_query == "TP53"
     assert traversal.total_paths >= 1
     assert "TP53" in traversal.paths_found[0].human_explanation
@@ -37,10 +35,10 @@ def test_api_handler_health():
     import urllib.request
     import threading
     from http.server import HTTPServer
-    import asyncio
+    from biocontext.api import API_VERSION, start_event_loop_thread
     import json
 
-    loop = asyncio.new_event_loop()
+    loop = start_event_loop_thread()
     client = BioContext()
     BioContextAPIHandler.client = client
     BioContextAPIHandler.loop = loop
@@ -57,7 +55,7 @@ def test_api_handler_health():
             assert response.status == 200
             data = json.loads(response.read().decode())
             assert data["status"] == "ok"
-            assert data["version"] == "1.0.0"
+            assert data["version"] == API_VERSION
     finally:
         server.shutdown()
         server.server_close()

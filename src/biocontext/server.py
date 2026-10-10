@@ -354,30 +354,50 @@ async def traverse_biological_graph(
     target_query: str,
     max_hops: int = 3,
     min_score: float = 0.0,
+    target_type: str | None = None,
 ) -> str:
-    """Traverse the biological Knowledge Graph to explain multi-hop relations deterministically (PRD-22).
+    """Enumerate graph paths from a source gene to a target entity (PRD-22).
 
-    Discovers evidence-backed relational paths connecting a source entity (e.g. gene)
-    to a target entity (e.g. disease, pathway, protein) without hallucination.
+    Paths follow edges drawn from curated databases; each hop reports its source
+    database and score if the source provides one. Scores are products of
+    source-provided weights, not probabilities. Literature edges are keyword hits
+    and are only used when target_type is 'publication'.
 
     Args:
-        source_query: Origin gene symbol (e.g. 'TP53', 'BRCA1').
-        target_query: Destination disease, pathway name, or identifier (e.g. 'cancer', 'apoptosis', 'breast').
-        max_hops: Maximum intermediate relational edges to traverse (default: 3).
-        min_score: Minimum cumulative confidence score threshold (default: 0.0).
+        source_query: Origin gene symbol or alias (e.g. 'TP53').
+        target_query: Target identifier (e.g. 'MONDO:0005575', 'R-HSA-69563') or a whole-phrase name (e.g. 'colorectal cancer').
+        max_hops: Maximum edges to traverse, 1 to 6 (default: 3).
+        min_score: Minimum product of source-provided scores, 0.0 to 1.0 (default: 0.0).
+        target_type: Optional node type filter: gene, protein, transcript, pathway, disease, publication, go_term.
 
     Returns:
-        JSON string containing explainable paths, hops, edge weights, and natural language narrative.
+        JSON string with paths, matched targets, and warnings. On invalid input, a JSON object with an 'error' field.
     """
+    import json
+    from biocontext.graph.models import NodeType
     from biocontext.graph.traversal import TraversalEngine
+
+    node_type = None
+    if target_type:
+        try:
+            node_type = NodeType(target_type.strip().lower())
+        except ValueError:
+            valid = ", ".join(t.value for t in NodeType)
+            return json.dumps({"error": f"Invalid target_type '{target_type}'. Valid values: {valid}"})
+
     engine = TraversalEngine(resolver=resolver)
-    result = await engine.traverse(
-        source_query=source_query,
-        target_query=target_query,
-        max_hops=max_hops,
-        min_score=min_score,
-    )
+    try:
+        result = await engine.traverse(
+            source_query=source_query,
+            target_query=target_query,
+            max_hops=max_hops,
+            min_score=min_score,
+            target_type=node_type,
+        )
+    except ValueError as e:
+        return json.dumps({"error": str(e)})
     return result.model_dump_json(indent=2)
+
 
 
 def main():
