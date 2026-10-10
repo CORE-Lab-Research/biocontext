@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/biocontext-hero.png" alt="BioContext" width="460" />
+<img src="https://raw.githubusercontent.com/CORE-Lab-Research/biocontext/main/docs/assets/biocontext-hero.png" alt="BioContext" width="460" />
 
 <p align="center">
   <strong>Authoritative Biological Entity Resolution & Contextual Intelligence Framework</strong><br>
