@@ -305,6 +305,49 @@ async def get_publication_details(identifier: str) -> str:
     return pub.model_dump_json(indent=2)
 
 
+@mcp.tool()
+async def build_entity_subgraph(
+    query: str,
+    taxon_id: int = 9606,
+    include_pathways: bool = True,
+    include_go: bool = True,
+    include_diseases: bool = True,
+    include_literature: bool = True,
+) -> str:
+    """Construct an ontological Knowledge Subgraph centered on a biological entity (PRD-21).
+
+    Connects the seed gene across multiple biological layers:
+    - Encoded proteins (UniProt)
+    - Transcripts (Ensembl)
+    - Reactome pathways
+    - Gene Ontology terms (processes & molecular functions)
+    - Disease associations with evidence scores (Open Targets)
+    - Key supporting peer-reviewed publications (Europe PMC)
+
+    Args:
+        query: Gene symbol (e.g. 'TP53', 'BRCA1', 'EGFR') or alias.
+        taxon_id: NCBI Taxonomy ID (default: 9606 for human).
+        include_pathways: Include Reactome pathway nodes and edges (default: True).
+        include_go: Include Gene Ontology nodes and edges (default: True).
+        include_diseases: Include Open Targets disease association nodes and edges (default: True).
+        include_literature: Include Europe PMC publication nodes and edges (default: True).
+
+    Returns:
+        JSON string representing the connected subgraph nodes, edges, weights, and provenance.
+    """
+    from biocontext.graph.builder import KnowledgeGraphBuilder
+    builder = KnowledgeGraphBuilder(resolver=resolver)
+    subgraph = await builder.build_gene_subgraph(
+        query=query,
+        taxon_id=taxon_id,
+        include_pathways=include_pathways,
+        include_go=include_go,
+        include_diseases=include_diseases,
+        include_literature=include_literature,
+    )
+    return subgraph.model_dump_json(indent=2)
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")
@@ -312,3 +355,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
