@@ -249,6 +249,18 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(subgraph.model_dump_json(indent=2))
         return 0
 
+    elif args.command == "traverse":
+        from biocontext.graph.traversal import TraversalEngine
+        engine = TraversalEngine(resolver=resolver)
+        res = await engine.traverse(
+            source_query=args.source,
+            target_query=args.target,
+            max_hops=args.max_hops,
+            min_score=args.min_score,
+        )
+        print(res.model_dump_json(indent=2))
+        return 0
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -284,7 +296,7 @@ def main():
     elif args.command in (
         "resolve", "batch", "protein", "transcripts", "ortholog", "mouse",
         "annotate", "go", "pathway", "pathway-info", "disease", "targets",
-        "literature", "paper", "graph", "cache"
+        "literature", "paper", "graph", "traverse", "cache"
     ):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:

@@ -125,6 +125,41 @@ class InMemoryGraphStore:
             total_edges=len(collected_edges),
         )
 
+    def find_paths(
+        self,
+        start_id: str,
+        target_id: str,
+        max_hops: int = 3,
+        min_cumulative_score: float = 0.0,
+    ) -> List[List[GraphEdge]]:
+        """Find deterministic directed paths between start_id and target_id using DFS."""
+        if start_id not in self._nodes or target_id not in self._nodes:
+            return []
+
+        results: List[List[GraphEdge]] = []
+
+        def dfs(current_id: str, current_path: List[GraphEdge], visited: Set[str], current_score: float):
+            if current_id == target_id and current_path:
+                results.append(list(current_path))
+                return
+
+            if len(current_path) >= max_hops:
+                return
+
+            for edge in self.get_outgoing_edges(current_id):
+                next_id = edge.target_id
+                if next_id not in visited:
+                    next_score = current_score * edge.weight
+                    if next_score >= min_cumulative_score:
+                        visited.add(next_id)
+                        current_path.append(edge)
+                        dfs(next_id, current_path, visited, next_score)
+                        current_path.pop()
+                        visited.remove(next_id)
+
+        dfs(start_id, [], {start_id}, 1.0)
+        return results
+
     @property
     def node_count(self) -> int:
         return len(self._nodes)
@@ -132,3 +167,4 @@ class InMemoryGraphStore:
     @property
     def edge_count(self) -> int:
         return sum(len(edges) for edges in self._out_edges.values())
+

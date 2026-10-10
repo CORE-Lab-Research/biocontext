@@ -66,3 +66,29 @@ class SubGraphContext(BaseModel):
     edges: List[GraphEdge] = Field(default_factory=list, description="Relationships connecting nodes in the subgraph")
     total_nodes: int = Field(0, description="Total node count")
     total_edges: int = Field(0, description="Total edge count")
+
+
+class PathStep(BaseModel):
+    """Single transition along an ontological traversal path."""
+    source_node: GraphNode = Field(..., description="Origin node of this hop")
+    edge: GraphEdge = Field(..., description="Connecting edge and relation")
+    target_node: GraphNode = Field(..., description="Destination node of this hop")
+
+
+class TraversalPath(BaseModel):
+    """An explainable, multi-hop path connecting two biological entities (PRD-22)."""
+    start_node_id: str = Field(..., description="Starting entity ID")
+    target_node_id: str = Field(..., description="Destination entity ID")
+    steps: List[PathStep] = Field(default_factory=list, description="Sequence of hops in the path")
+    hop_count: int = Field(0, description="Number of edges traversed")
+    cumulative_score: float = Field(1.0, ge=0.0, le=1.0, description="Product of confidence scores along path")
+    human_explanation: str = Field(..., description="Deterministic, zero-hallucination natural language narrative of the biological path")
+
+
+class TraversalResult(BaseModel):
+    """Result of a multi-hop graph traversal query."""
+    source_query: str = Field(..., description="Initial source query or symbol")
+    target_query: str = Field(..., description="Initial target query or disease/pathway")
+    paths_found: List[TraversalPath] = Field(default_factory=list, description="Discovered deterministic biological paths")
+    total_paths: int = Field(0, description="Count of valid paths discovered")
+
