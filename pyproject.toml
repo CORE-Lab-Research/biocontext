@@ -1,6 +1,6 @@
 [project]
 name = "biocontext-mcp"
-version = "0.9.0"
+version = "1.0.0"
 description = "Authoritative Biological Entity Resolution & Contextual Intelligence Framework"
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ keywords = [
     "uniprot",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "License :: OSI Approved :: Apache Software License",

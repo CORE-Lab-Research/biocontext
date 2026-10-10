@@ -287,6 +287,9 @@ def main():
 
     if args.command == "server":
         mcp.run(transport="stdio")
+    elif args.command == "api":
+        from biocontext.api import run_api_server
+        run_api_server(host=args.host, port=args.port)
     elif args.command == "bench":
         import pytest
         sys.exit(pytest.main(["tests/test_benchmark.py", "-v"]))
