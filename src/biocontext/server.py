@@ -348,9 +348,42 @@ async def build_entity_subgraph(
     return subgraph.model_dump_json(indent=2)
 
 
+@mcp.tool()
+async def traverse_biological_graph(
+    source_query: str,
+    target_query: str,
+    max_hops: int = 3,
+    min_score: float = 0.0,
+) -> str:
+    """Traverse the biological Knowledge Graph to explain multi-hop relations deterministically (PRD-22).
+
+    Discovers evidence-backed relational paths connecting a source entity (e.g. gene)
+    to a target entity (e.g. disease, pathway, protein) without hallucination.
+
+    Args:
+        source_query: Origin gene symbol (e.g. 'TP53', 'BRCA1').
+        target_query: Destination disease, pathway name, or identifier (e.g. 'cancer', 'apoptosis', 'breast').
+        max_hops: Maximum intermediate relational edges to traverse (default: 3).
+        min_score: Minimum cumulative confidence score threshold (default: 0.0).
+
+    Returns:
+        JSON string containing explainable paths, hops, edge weights, and natural language narrative.
+    """
+    from biocontext.graph.traversal import TraversalEngine
+    engine = TraversalEngine(resolver=resolver)
+    result = await engine.traverse(
+        source_query=source_query,
+        target_query=target_query,
+        max_hops=max_hops,
+        min_score=min_score,
+    )
+    return result.model_dump_json(indent=2)
+
+
 def main():
     """Run MCP server over stdio."""
     mcp.run(transport="stdio")
+
 
 
 if __name__ == "__main__":

@@ -179,40 +179,40 @@ class KnowledgeGraphBuilder:
         # 5. Gene Ontology (GO Terms)
         if include_go and primary_accession:
             try:
-                go_ctx = await self.resolver.get_functional_annotations(primary_accession)
-                # Sample 2 biological processes and 2 molecular functions
-                sampled_go = (go_ctx.biological_processes[:2] + go_ctx.molecular_functions[:2])
-                for go in sampled_go:
-                    go_node_id = f"go:{go.go_id}"
-                    go_node = GraphNode(
-                        id=go_node_id,
-                        name=go.name or go.go_id,
-                        node_type=NodeType.GO_TERM,
-                        properties={"go_id": go.go_id, "aspect": go.aspect},
-                        provenance=Provenance(
-                            source_database="GeneOntology",
-                            confidence=1.0,
-                            source_id=go.go_id,
-                            evidence_code=go.evidence_code,
-                        ),
-                    )
-                    store.add_node(go_node)
-                    protein_node_id = f"protein:{primary_accession}"
-                    src_id = protein_node_id if store.get_node(protein_node_id) else gene_node_id
-                    edge_type = (
-                        EdgeType.INVOLVED_IN
-                        if go.aspect == "biological_process"
-                        else EdgeType.HAS_FUNCTION
-                    )
-                    store.add_edge(
-                        GraphEdge(
-                            source_id=src_id,
-                            target_id=go_node_id,
-                            edge_type=edge_type,
-                            weight=1.0,
-                            provenance=Provenance(source_database="GeneOntology", confidence=1.0),
+                go_ctx = await self.resolver.annotate_gene(primary_accession, max_terms_per_aspect=2)
+                if go_ctx:
+                    sampled_go = (go_ctx.biological_processes[:2] + go_ctx.molecular_functions[:2])
+                    for go in sampled_go:
+                        go_node_id = f"go:{go.go_id}"
+                        go_node = GraphNode(
+                            id=go_node_id,
+                            name=go.name or go.go_id,
+                            node_type=NodeType.GO_TERM,
+                            properties={"go_id": go.go_id, "aspect": go.aspect},
+                            provenance=Provenance(
+                                source_database="GeneOntology",
+                                confidence=1.0,
+                                source_id=go.go_id,
+                                evidence_code=go.evidence_code,
+                            ),
                         )
-                    )
+                        store.add_node(go_node)
+                        protein_node_id = f"protein:{primary_accession}"
+                        src_id = protein_node_id if store.get_node(protein_node_id) else gene_node_id
+                        edge_type = (
+                            EdgeType.INVOLVED_IN
+                            if go.aspect == "biological_process"
+                            else EdgeType.HAS_FUNCTION
+                        )
+                        store.add_edge(
+                            GraphEdge(
+                                source_id=src_id,
+                                target_id=go_node_id,
+                                edge_type=edge_type,
+                                weight=1.0,
+                                provenance=Provenance(source_database="GeneOntology", confidence=1.0),
+                            )
+                        )
             except Exception as e:
                 logger.warning(f"Failed to fetch GO annotations for graph: {e}")
 

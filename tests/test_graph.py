@@ -135,3 +135,41 @@ async def test_mcp_tool_build_entity_subgraph():
     assert data["root_node_id"] == "gene:BRCA1"
     assert len(data["nodes"]) >= 2
     assert len(data["edges"]) >= 1
+
+
+@pytest.mark.asyncio
+async def test_traversal_engine_find_paths():
+    from biocontext.graph.traversal import TraversalEngine
+    resolver = EntityResolver()
+    engine = TraversalEngine(resolver=resolver)
+
+    result = await engine.traverse(
+        source_query="TP53",
+        target_query="cancer",
+        max_hops=3,
+    )
+
+    assert result.source_query == "TP53"
+    assert result.target_query == "cancer"
+    assert result.total_paths >= 1
+    top_path = result.paths_found[0]
+    assert top_path.start_node_id == "gene:TP53"
+    assert top_path.hop_count >= 1
+    assert "TP53" in top_path.human_explanation
+    assert len(top_path.steps) == top_path.hop_count
+
+
+@pytest.mark.asyncio
+async def test_mcp_tool_traverse_biological_graph():
+    from biocontext.server import traverse_biological_graph
+    import json
+
+    res_json = await traverse_biological_graph(
+        source_query="TP53",
+        target_query="PUMA",
+        max_hops=3,
+    )
+    data = json.loads(res_json)
+    assert data["source_query"] == "TP53"
+    assert "paths_found" in data
+

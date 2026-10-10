@@ -6,10 +6,14 @@ from biocontext.graph.models import (
     GraphEdge,
     GraphNode,
     NodeType,
+    PathStep,
     Provenance,
     SubGraphContext,
+    TraversalPath,
+    TraversalResult,
 )
 from biocontext.graph.store import InMemoryGraphStore
+from biocontext.graph.traversal import TraversalEngine
 
 __all__ = [
     "NodeType",
@@ -18,6 +22,11 @@ __all__ = [
     "GraphNode",
     "GraphEdge",
     "SubGraphContext",
+    "PathStep",
+    "TraversalPath",
+    "TraversalResult",
     "InMemoryGraphStore",
     "KnowledgeGraphBuilder",
+    "TraversalEngine",
 ]
+

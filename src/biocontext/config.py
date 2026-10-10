@@ -209,6 +209,16 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["--no-literature"], "dest": "include_literature", "action": "store_false", "help": "Exclude literature citations"}
         ]
     },
+    {
+        "name": "traverse",
+        "help": "Find and explain deterministic multi-hop reasoning paths (PRD-22)",
+        "arguments": [
+            {"flags": ["source"], "help": "Source entity (e.g. TP53, BRCA1)"},
+            {"flags": ["target"], "help": "Target entity or keyword (e.g. cancer, apoptosis)"},
+            {"flags": ["--max-hops"], "type": int, "default": 3, "help": "Max hops (default: 3)"},
+            {"flags": ["--min-score"], "type": float, "default": 0.0, "help": "Minimum cumulative score (default: 0.0)"}
+        ]
+    },
 
 
 
