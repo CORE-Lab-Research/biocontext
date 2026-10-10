@@ -235,6 +235,20 @@ async def run_cli_async(args: argparse.Namespace) -> int:
         print(pub.model_dump_json(indent=2))
         return 0
 
+    elif args.command == "graph":
+        from biocontext.graph.builder import KnowledgeGraphBuilder
+        builder = KnowledgeGraphBuilder(resolver=resolver)
+        subgraph = await builder.build_gene_subgraph(
+            query=args.query,
+            taxon_id=args.taxon,
+            include_pathways=args.include_pathways,
+            include_go=args.include_go,
+            include_diseases=args.include_diseases,
+            include_literature=args.include_literature,
+        )
+        print(subgraph.model_dump_json(indent=2))
+        return 0
+
     elif args.command == "cache":
         cache = resolver.cache
         if args.cache_action == "clear":
@@ -270,7 +284,7 @@ def main():
     elif args.command in (
         "resolve", "batch", "protein", "transcripts", "ortholog", "mouse",
         "annotate", "go", "pathway", "pathway-info", "disease", "targets",
-        "literature", "paper", "cache"
+        "literature", "paper", "graph", "cache"
     ):
         sys.exit(asyncio.run(run_cli_async(args)))
     else:

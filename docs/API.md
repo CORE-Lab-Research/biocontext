@@ -150,8 +150,9 @@ asyncio.run(main())
 | `targets` | `biocontext targets <gene> [-l INT]` | Retrieve Open Targets evidence-backed disease associations. |
 | `literature` | `biocontext literature <query> [-l INT]` | Search supporting peer-reviewed publications from Europe PMC / PubMed. |
 | `paper` | `biocontext paper <identifier>` | Fetch detailed paper metadata and abstract by PMID, PMCID, or DOI. |
+| `graph` | `biocontext graph <query> [--taxon INT]` | Construct connected biological Knowledge Subgraph (PRD-21). |
 | `mouse` | `biocontext mouse <MGI_ID>` | Lookup mouse gene model via MGI. |
-| `cache` | `biocontext cache [stats\|clear]` | Inspect or clear SQLite cache. |
+| `cache` | `biocontext cache [stats|clear]` | Inspect or clear SQLite cache. |
 | `serve` | `biocontext serve` | Start stdio MCP server for AI clients. |
 
 

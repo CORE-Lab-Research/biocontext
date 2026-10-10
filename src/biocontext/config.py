@@ -197,6 +197,19 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["identifier"], "help": "Publication ID (e.g. 30514107, PMC6280721, or 10.1038/...)"}
         ]
     },
+    {
+        "name": "graph",
+        "help": "Construct connected biological Knowledge Subgraph (PRD-21)",
+        "arguments": [
+            {"flags": ["query"], "help": "Gene symbol (e.g. TP53, BRCA1) or alias"},
+            {"flags": ["--taxon"], "type": int, "default": 9606, "help": "NCBI Taxonomy ID (default: 9606)"},
+            {"flags": ["--no-pathways"], "dest": "include_pathways", "action": "store_false", "help": "Exclude Reactome pathways"},
+            {"flags": ["--no-go"], "dest": "include_go", "action": "store_false", "help": "Exclude Gene Ontology terms"},
+            {"flags": ["--no-diseases"], "dest": "include_diseases", "action": "store_false", "help": "Exclude disease associations"},
+            {"flags": ["--no-literature"], "dest": "include_literature", "action": "store_false", "help": "Exclude literature citations"}
+        ]
+    },
+
 
 
     {
