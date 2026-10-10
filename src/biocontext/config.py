@@ -219,6 +219,15 @@ CLI_COMMANDS_REGISTRY: List[Dict[str, Any]] = [
             {"flags": ["--min-score"], "type": float, "default": 0.0, "help": "Minimum cumulative score (default: 0.0)"}
         ]
     },
+    {
+        "name": "api",
+        "help": "Start standalone BioContext REST API v1 HTTP server (PRD-18)",
+        "arguments": [
+            {"flags": ["--host"], "default": "127.0.0.1", "help": "Host address (default: 127.0.0.1)"},
+            {"flags": ["--port"], "type": int, "default": 8000, "help": "Port number (default: 8000)"}
+        ]
+    },
+
 
 
 

@@ -152,8 +152,25 @@ asyncio.run(main())
 | `paper` | `biocontext paper <identifier>` | Fetch detailed paper metadata and abstract by PMID, PMCID, or DOI. |
 | `graph` | `biocontext graph <query> [--taxon INT]` | Construct connected biological Knowledge Subgraph (PRD-21). |
 | `traverse` | `biocontext traverse <source> <target> [--max-hops INT]` | Find and explain deterministic multi-hop reasoning paths (PRD-22). |
+| `api` | `biocontext api [--host HOST] [--port PORT]` | Start standalone BioContext REST API v1 server (PRD-18). |
 | `mouse` | `biocontext mouse <MGI_ID>` | Lookup mouse gene model via MGI. |
 | `cache` | `biocontext cache [stats|clear]` | Inspect or clear SQLite cache. |
 | `serve` | `biocontext serve` | Start stdio MCP server for AI clients. |
+
+---
+
+## 5. REST API v1 Endpoints Reference
+
+Start the server using: `biocontext api --port 8000`
+
+| Method | Endpoint | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/health` | Service health status and version info | `curl http://127.0.0.1:8000/health` |
+| `GET` | `/v1/gene/{symbol}` | Resolve gene symbol to canonical entity | `curl http://127.0.0.1:8000/v1/gene/TP53` |
+| `GET` | `/v1/protein/{accession}` | Fetch UniProt protein model | `curl http://127.0.0.1:8000/v1/protein/P04637` |
+| `GET` | `/v1/disease/{query}` | Search MONDO disease ontology | `curl http://127.0.0.1:8000/v1/disease/cancer` |
+| `GET` | `/v1/graph/{symbol}` | Construct interconnected Knowledge Subgraph | `curl http://127.0.0.1:8000/v1/graph/TP53` |
+| `GET` | `/v1/traverse?source=X&target=Y` | Deterministic multi-hop path reasoning | `curl "http://127.0.0.1:8000/v1/traverse?source=TP53&target=cancer"` |
+
 
 
