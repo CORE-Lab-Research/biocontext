@@ -28,8 +28,11 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Run full test suite
-        run: uv run pytest tests/ -v --reruns 2 --reruns-delay 10
+      - name: Run offline test suite
+        run: uv run pytest tests/ -v -m "not network"
+
+      - name: Run live network test suite
+        run: uv run pytest tests/ -v -m network --reruns 2 --reruns-delay 10 --durations=15
 
   build:
     runs-on: ubuntu-latest

@@ -111,7 +111,16 @@ class MyEntity(BaseModel):
 
 All contributions must pass existing tests and include tests for new functionality.
 
-1. **Run the full test suite**:
+1. **Run the offline test suite first** (deterministic, finishes in seconds):
+   ```bash
+   uv run pytest tests/ -m "not network"
+   ```
+   Every test outside `tests/test_offline_robustness.py` calls live upstream APIs and is
+   marked `network` automatically by `tests/conftest.py`. Add new offline modules to
+   `OFFLINE_MODULES` there.
+
+   **Then run the full test suite** (live APIs, takes several minutes; each test is capped
+   at 120 s by `pytest-timeout`):
    ```bash
    uv run pytest tests/ -v
    ```

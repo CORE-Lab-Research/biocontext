@@ -39,6 +39,14 @@ dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "pytest-rerunfailures>=14.0",
+    "pytest-timeout>=2.3",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 120
+markers = [
+    "network: test calls live upstream APIs (deselect with -m 'not network')",
 ]
 
 [project.scripts]
