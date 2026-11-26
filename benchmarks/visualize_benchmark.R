@@ -1,23 +1,3 @@
-# Publication-quality benchmark visualization script for BioContext v1.0.0
-# Outputs high-resolution plots for LinkedIn & technical report
-
-suppressPackageStartupMessages({
-  library(ggplot2)
-  library(dplyr)
-  library(tidyr)
-  library(patchwork)
-})
-
-base_dir <- getwd()
-data_dir <- file.path(base_dir, "benchmarks", "output")
-out_img <- file.path(data_dir, "biocontext_benchmark_linkedin.png")
-
-# 1. Load CSV data
-res_df <- read.csv(file.path(data_dir, "resolution_benchmark_results.csv"))
-stress_df <- read.csv(file.path(data_dir, "stress_test_1000_results.csv"))
-scaling_df <- read.csv(file.path(data_dir, "concurrency_scaling_results.csv"))
-comp_df <- read.csv(file.path(data_dir, "method_comparison_benchmark.csv"))
-
 # Publication-quality benchmark visualization script for BioContext
 # Designed following Nature / Cell / Science editorial figure guidelines
 # - Muted, distinct palette (Navy, Steel, Amber, Slate)

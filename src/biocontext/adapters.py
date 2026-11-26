@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -632,7 +633,6 @@ class EnsemblAdapter(BaseBioAdapter):
         hgnc_id = None
         clean_name = description
         if description:
-            import re
             m = re.search(r"Acc:(HGNC:\d+)", description)
             if m:
                 hgnc_id = m.group(1)
