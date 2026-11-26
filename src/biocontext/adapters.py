@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from typing import Any, Dict, List, Optional
 import httpx
 
@@ -628,11 +629,21 @@ class EnsemblAdapter(BaseBioAdapter):
         # Default taxon_id heuristic
         taxon_id = 9606 if "homo" in species.lower() else (10090 if "mus" in species.lower() else 0)
 
+        # Sanitize description and extract HGNC ID if embedded e.g. [Source:HGNC Symbol;Acc:HGNC:11998]
+        hgnc_id = None
+        clean_name = description
+        if description:
+            m = re.search(r"Acc:(HGNC:\d+)", description)
+            if m:
+                hgnc_id = m.group(1)
+            clean_name = re.sub(r"\s*\[Source:[^\]]+\]", "", description).strip() or description
+
         return GeneEntity(
             symbol=symbol,
-            name=description,
+            name=clean_name,
             taxon_id=taxon_id,
             species=species,
+            hgnc_id=hgnc_id,
             ensembl_gene_id=ensembl_id,
             locus_type=biotype,
             location=location,

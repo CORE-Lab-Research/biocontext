@@ -20,3 +20,6 @@ htmlcov/
 
 # Specification & internal documents
 PRD/
+
+# Benchmark outputs and visual artifacts
+benchmarks/output/
